@@ -25,8 +25,6 @@
 #include <getopt.h>
 #include <perfstats.h>
 
-PerfStats Stats;
-
 /***
  * This program loop over a scene recording
  */
@@ -104,7 +102,7 @@ int main(int argc, char ** argv) {
       init_pose,
       config.pyramid, config);
      
-  bool bilateralfilter = false;
+  bool bilateral_filter = false;
 	std::chrono::time_point<std::chrono::steady_clock> timings[7];
 	timings[0] = std::chrono::steady_clock::now();
 
@@ -120,7 +118,7 @@ int main(int argc, char ** argv) {
 		timings[1] = std::chrono::steady_clock::now();
 
 		pipeline.preprocessing(inputDepth, 
-          Eigen::Vector2i(inputSize.x, inputSize.y), config.bilateralFilter);
+          Eigen::Vector2i(inputSize.x, inputSize.y), config.bilateral_filter);
 
 		timings[2] = std::chrono::steady_clock::now();
 

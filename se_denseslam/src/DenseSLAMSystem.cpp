@@ -50,7 +50,7 @@
 #include "kfusion/alloc_impl.hpp"
 
 
-extern PerfStats Stats;
+PerfStats Stats;
 
 DenseSLAMSystem::DenseSLAMSystem(const Eigen::Vector2i& inputSize,
                                  const Eigen::Vector3i& volumeResolution,
