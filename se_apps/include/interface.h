@@ -38,13 +38,12 @@ struct ReaderConfiguration {
   std::string data_path;
   std::string groundtruth_path;
   Eigen::Matrix4f transform;
+
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 class DepthReader {
   public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
     virtual ~DepthReader() { }
 
     virtual bool readNextDepthFrame(float * depthMap)= 0;
@@ -155,6 +154,8 @@ class DepthReader {
 
     bool cameraActive;
     bool cameraOpen;
+
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   protected:
     int _frame;
     size_t _pose_num;
@@ -277,7 +278,6 @@ class SceneDepthReader: public DepthReader {
       }
       return index > 0;
     }
-
 };
 
 /**
@@ -493,7 +493,6 @@ class RawDepthReader: public DepthReader {
     inline Eigen::Vector4f getK() {
       return Eigen::Vector4f(531.15, 531.15, 640 / 2, 480 / 2);
     }
-
 };
 
 #ifdef DO_OPENNI
@@ -772,7 +771,6 @@ class OpenNIDepthReader: public DepthReader {
     inline Eigen::Vector4f getK() {
       return Eigen::Vector4f(481.2, 480, 640/2, 480/2);
     }
-
 };
 
 #else
