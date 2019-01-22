@@ -233,8 +233,12 @@ public:
 
   void printMemStats(){
     // memory.printStats();
+
+
   };
 
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  
 private:
 
   Node<T> * root_;
