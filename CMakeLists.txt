@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 project(se)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
+#add_definitions(-DEIGEN_MAX_ALIGN_BYTES=0)
+
 add_compile_options(-std=c++14 -march=native)
 add_subdirectory(se_core)
 add_subdirectory(se_shared)
