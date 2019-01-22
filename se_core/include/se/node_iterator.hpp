@@ -74,6 +74,8 @@ class node_iterator {
     }
   }
 
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
   private:
   typedef enum ITER_STATE {
     BRANCH_NODES,
