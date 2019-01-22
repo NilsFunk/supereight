@@ -72,13 +72,18 @@ DenseSLAMSystem::DenseSLAMSystem(const Eigen::Vector2i& inputSize,
   normal_(computation_size_.x(), computation_size_.y()),
   float_depth_(computation_size_.x(), computation_size_.y())
   {
-
+    std::cout << "SUCCESS: Entered scope of constructor" << std::endl;
+    std::cout << "CHECK: this->init_pose_, ..." << std::endl;
     this->init_pose_ = initPose.block<3,1>(0,3);
     this->volume_dimension_ = volumeDimensions;
     this->volume_resolution_ = volumeResolution;
     this->mu_ = config.mu;
+    std::cout << "SUCCESS: ^ \nCHECK: pose_" << std::endl;
     pose_ = initPose;
+    std::cout << "SUCCESS: ^ \nCHECK: raycast_pose_" << std::endl;
     raycast_pose_ = initPose;
+    std::cout << "SUCCESS: ^ \n " << std::endl;
+
 
     this->iterations_.clear();
     for (std::vector<int>::iterator it = pyramid.begin();
