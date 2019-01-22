@@ -88,7 +88,7 @@ void bilateralFilterKernel(se::Image<float>& out, const se::Image<float>& in,
 		TOCK("bilateralFilterKernel", width * height);
 }
 
-  void depth2vertexKernel(se::Image<Eigen::Vector3f>& vertex, 
+  void depth2vertexKernel(se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>& vertex, 
                          const se::Image<float>& depth,
                          const Eigen::Matrix4f invK) {
 	TICK();
@@ -111,8 +111,8 @@ void bilateralFilterKernel(se::Image<float>& out, const se::Image<float>& in,
 }
 
 template <bool NegY>
-void vertex2normalKernel(se::Image<Eigen::Vector3f>&  out, 
-    const se::Image<Eigen::Vector3f>& in) {
+void vertex2normalKernel(se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>&  out, 
+    const se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>& in) {
   TICK();
   int x, y;
   int width = in.width();

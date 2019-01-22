@@ -77,8 +77,8 @@ class DenseSLAMSystem {
     std::vector<float> gaussian_;
 
     // inter-frame
-    se::Image<Eigen::Vector3f> vertex_;
-    se::Image<Eigen::Vector3f> normal_;
+    se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> vertex_;
+    se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> normal_;
 
     std::vector<se::key_t> allocation_list_;
     std::shared_ptr<se::Octree<FieldType> > discrete_vol_ptr_;
@@ -86,9 +86,11 @@ class DenseSLAMSystem {
 
     // intra-frame
     std::vector<float> reduction_output_;
-    std::vector<se::Image<float>  > scaled_depth_;
-    std::vector<se::Image<Eigen::Vector3f> > input_vertex_;
-    std::vector<se::Image<Eigen::Vector3f> > input_normal_;
+    std::vector<se::Image<float>> scaled_depth_;
+    std::vector<se::Image<Eigen::Vector3f,Eigen::aligned_allocator<Eigen::Vector3f>>, 
+            Eigen::aligned_allocator<se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>>> input_vertex_;
+    std::vector<se::Image<Eigen::Vector3f,Eigen::aligned_allocator<Eigen::Vector3f>>, 
+            Eigen::aligned_allocator<se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>>> input_normal_;
     se::Image<float> float_depth_;
     std::vector<TrackData>  tracking_result_;
     Eigen::Matrix4f old_pose_;
@@ -109,11 +111,11 @@ class DenseSLAMSystem {
      * \param[in] config_ The pipeline options.
      */
     DenseSLAMSystem(const Eigen::Vector2i& inputSize,
-                    const Eigen::Vector3i& volume_resolution_,
-                    const Eigen::Vector3f& volume_dimension_,
+                    const Eigen::Vector3i& volume_resolution,
+                    const Eigen::Vector3f& volume_dimension,
                     const Eigen::Vector3f& initPose,
                     std::vector<int> &     pyramid,
-                    const Configuration&   config_);
+                    const Configuration&   config);
     /**
      * Constructor using the initial camera position.
      *
@@ -127,11 +129,11 @@ class DenseSLAMSystem {
      * \param[in] config_ The pipeline options.
      */
     DenseSLAMSystem(const Eigen::Vector2i& inputSize,
-                    const Eigen::Vector3i& volume_resolution_,
-                    const Eigen::Vector3f& volume_dimension_,
+                    const Eigen::Vector3i& volume_resolution,
+                    const Eigen::Vector3f& volume_dimension,
                     const Eigen::Matrix4f& initPose,
                     std::vector<int> &     pyramid,
-                    const Configuration&   config_);
+                    const Configuration&   config);
 
     /**
      * Preprocess a single depth measurement frame and add it to the pipeline.

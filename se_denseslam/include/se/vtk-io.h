@@ -277,7 +277,7 @@ void saveBlockList(const BlockList& in, const Eigen::Vector3i shift, const char*
   f.close();
 } 
 
-void printNormals(const se::Image<Eigen::Vector3f> in, const unsigned int xdim, 
+void printNormals(const se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> in, const unsigned int xdim, 
                  const unsigned int ydim, const char* filename) {
   unsigned char* image = new unsigned char [xdim * ydim * 4];
   for(unsigned int y = 0; y < ydim; ++y)

@@ -100,10 +100,10 @@ DenseSLAMSystem::DenseSLAMSystem(const Eigen::Vector2i& inputSize,
       scaled_depth_.push_back(se::Image<float>(computation_size_.x() / downsample,
             computation_size_.y() / downsample));
 
-      input_vertex_.push_back(se::Image<Eigen::Vector3f>(computation_size_.x() / downsample,
+      input_vertex_.push_back(se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>(computation_size_.x() / downsample,
             computation_size_.y() / downsample));
 
-      input_normal_.push_back(se::Image<Eigen::Vector3f>(computation_size_.x() / downsample,
+      input_normal_.push_back(se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>(computation_size_.x() / downsample,
             computation_size_.y() / downsample));
     }
 

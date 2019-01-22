@@ -48,8 +48,8 @@
 #include "kfusion/rendering_impl.hpp"
 
 template<typename T>
-void raycastKernel(const Volume<T>& volume, se::Image<Eigen::Vector3f>& vertex,
-   se::Image<Eigen::Vector3f>& normal,
+void raycastKernel(const Volume<T>& volume, se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>& vertex,
+   se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>& normal,
    const Eigen::Matrix4f& view, const float nearPlane, const float farPlane, 
    const float mu, const float step, const float largestep) {
   TICK();
@@ -224,8 +224,8 @@ void renderVolumeKernel(const Volume<T>& volume,
     const Eigen::Vector3f light,
 		const Eigen::Vector3f ambient, 
     bool render, 
-    const se::Image<Eigen::Vector3f>& vertex, 
-    const se::Image<Eigen::Vector3f>& normal) {
+    const se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>& vertex, 
+    const se::Image<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>& normal) {
   TICK();
   int y;
 #pragma omp parallel for shared(out), private(y)

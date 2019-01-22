@@ -7,37 +7,40 @@
 
 namespace se {
 
-  template <typename T>
+  template <typename class_T, typename allocator_T=std::allocator<class_T>>
     class Image {
 
       public:
         Image(const unsigned w, const unsigned h) : width_(w), height_(h) {
+          std::cout << "Called image constructor 01" << std::endl;
           assert(width_ > 0 && height_ > 0);
           data_.resize(width_ * height_);
         }
 
-        Image(const unsigned w, const unsigned h, const T& val) : width_(w), height_(h) {
+        Image(const unsigned w, const unsigned h, const class_T& val) : width_(w), height_(h) {
+          std::cout << "Called image constructor 02" << std::endl;
           assert(width_ > 0 && height_ > 0);
           data_.resize(width_ * height_, val);
         }
 
-        T&       operator[](std::size_t idx)       { return data_[idx]; }
-        const T& operator[](std::size_t idx) const { return data_[idx]; }
+        class_T&       operator[](std::size_t idx)       { return data_[idx]; }
+        const class_T& operator[](std::size_t idx) const { return data_[idx]; }
 
-        T&       operator()(const int x, const int y)       { return data_[x + y*width_]; }
-        const T& operator()(const int x, const int y) const { return data_[x + y*width_]; }
+        class_T&       operator()(const int x, const int y)       { return data_[x + y*width_]; }
+        const class_T& operator()(const int x, const int y) const { return data_[x + y*width_]; }
 
         std::size_t size()   const   { return width_ * height_; };
         int         width () const { return width_;  };
         int         height() const { return height_; };
 
-        T* data()             { return data_.data(); }
-        const T* data() const { return data_.data(); }
+        class_T* data()             { return data_.data(); }
+        const class_T* data() const { return data_.data(); }
 
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       private:
         const int width_;
         const int height_;
-        std::vector<T, Eigen::aligned_allocator<T> > data_;
+        std::vector<class_T, allocator_T> data_;
     };
 
 } // end namespace se
