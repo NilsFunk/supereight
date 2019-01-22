@@ -245,6 +245,7 @@ typedef struct Triangle {
     return points;
   }
 
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } Triangle;
 
 struct TrackData {

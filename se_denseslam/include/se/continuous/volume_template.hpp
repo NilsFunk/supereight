@@ -106,6 +106,7 @@ class VolumeTemplate {
     std::vector<se::key_t> _allocationList;
     DiscreteMapT<FieldType> * _map_index; 
 
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   private:
 
     inline Eigen::Vector3i pos(const Eigen::Vector3f & p) const {
