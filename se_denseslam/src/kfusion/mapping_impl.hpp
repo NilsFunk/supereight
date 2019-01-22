@@ -33,7 +33,7 @@
 #include <se/node.hpp>
 
 struct sdf_update {
-
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   template <typename DataHandlerT>
   void operator()(DataHandlerT& handler, const Eigen::Vector3i&, 
       const Eigen::Vector3f& pos, const Eigen::Vector2f& pixel) {

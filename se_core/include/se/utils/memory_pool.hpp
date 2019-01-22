@@ -85,6 +85,7 @@ class MemoryPool {
       return ptr;
     }
 
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   private:
 
     size_t reserved_;

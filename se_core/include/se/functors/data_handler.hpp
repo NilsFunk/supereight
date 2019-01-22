@@ -39,6 +39,8 @@ class DataHandlerBase {
   void set(const typename NodeT::value_type& val) {
     static_cast<SpecialisedHandlerT *>(this)->set(val);
   }
+  
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 template<typename FieldType>

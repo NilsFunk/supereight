@@ -155,7 +155,6 @@ static inline float applyWindow(const float occupancy, const float ,
 }
 
 struct bfusion_update {
-
   template <typename DataHandlerT>
   void operator()(DataHandlerT& handler, const Eigen::Vector3i&, 
       const Eigen::Vector3f& pos, const Eigen::Vector2f& pixel) {
@@ -185,5 +184,7 @@ struct bfusion_update {
   Eigen::Vector2i depthSize;
   float noiseFactor;
   float timestamp;
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 #endif

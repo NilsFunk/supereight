@@ -102,7 +102,8 @@ namespace se {
             update_node(nodes_list[i]);
           }
         }
-
+        
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       private:
         MapT<FieldType>& _map; 
         UpdateF _function; 
