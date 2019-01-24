@@ -37,6 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 
 struct Configuration {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   //
   // KFusion configuration parameters
   // Command line arguments are parsed in default_parameters.h
@@ -209,8 +210,6 @@ struct Configuration {
    * <br>\em Default: false
    */
   bool bayesian;
-
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 #endif

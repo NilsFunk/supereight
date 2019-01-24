@@ -11,6 +11,7 @@ namespace se {
     class Image {
 
       public:
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
         Image(const unsigned w, const unsigned h) : width_(w), height_(h) {
           assert(width_ > 0 && height_ > 0);
           data_.resize(width_ * height_);
@@ -33,8 +34,6 @@ namespace se {
 
         class_T* data()             { return data_.data(); }
         const class_T* data() const { return data_.data(); }
-
-        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       private:
         const int width_;
         const int height_;

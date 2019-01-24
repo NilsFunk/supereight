@@ -50,6 +50,7 @@ template <typename FieldType, template<typename> class DiscreteMapT>
 class VolumeTemplate {
 
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     typedef voxel_traits<FieldType> traits_type;
     typedef typename traits_type::value_type value_type;
     typedef FieldType field_type;
@@ -106,7 +107,6 @@ class VolumeTemplate {
     std::vector<se::key_t> _allocationList;
     DiscreteMapT<FieldType> * _map_index; 
 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   private:
 
     inline Eigen::Vector3i pos(const Eigen::Vector3f & p) const {

@@ -40,7 +40,7 @@ template <typename T>
 class node_iterator {
 
   public:
-
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   node_iterator(const Octree<T>& m): map_(m){
     state_ = BRANCH_NODES;
     last = 0;
@@ -73,8 +73,6 @@ class node_iterator {
         return nullptr;
     }
   }
-
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   private:
   typedef enum ITER_STATE {

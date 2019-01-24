@@ -45,6 +45,8 @@ namespace functor {
   class projective_functor {
 
     public:
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
       projective_functor(MapT<FieldType>& map, UpdateF f, const Sophus::SE3f& Tcw, 
           const Eigen::Matrix4f& K, const Eigen::Vector2i framesize) : 
         _map(map), _function(f), _Tcw(Tcw), _K(K), _frame_size(framesize) {
@@ -154,8 +156,6 @@ namespace functor {
          }
       }
 
-
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     private:
       MapT<FieldType>& _map; 
       UpdateF _function; 

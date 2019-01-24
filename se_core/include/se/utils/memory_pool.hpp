@@ -42,7 +42,8 @@ template <typename BlockType>
 class MemoryPool {
 
   public:
-    
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+        
     MemoryPool(){
       current_block_ = 0;
       num_pages_ = 0;
@@ -85,7 +86,6 @@ class MemoryPool {
       return ptr;
     }
 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   private:
 
     size_t reserved_;

@@ -45,6 +45,7 @@ template <typename T>
 class Node {
 
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   typedef voxel_traits<T> traits_type;
   typedef typename traits_type::value_type value_type;
   value_type empty() const { return traits_type::empty(); }
@@ -90,6 +91,7 @@ template <typename T>
 class VoxelBlock: public Node<T> {
 
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     typedef voxel_traits<T> traits_type;
     typedef typename traits_type::value_type value_type;
@@ -126,8 +128,6 @@ class VoxelBlock: public Node<T> {
     value_type * getBlockRawPtr(){ return voxel_block_; }
     static constexpr int size(){ return sizeof(VoxelBlock<T>); }
     
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
   private:
     VoxelBlock(const VoxelBlock&) = delete;
     Eigen::Vector3i coordinates_;

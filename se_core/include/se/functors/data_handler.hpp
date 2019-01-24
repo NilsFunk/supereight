@@ -33,14 +33,14 @@
 
 template <typename SpecialisedHandlerT, typename NodeT>
 class DataHandlerBase {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+ 
   typename NodeT::value_type get() {
     return static_cast<SpecialisedHandlerT *>(this)->get();
   } 
   void set(const typename NodeT::value_type& val) {
     static_cast<SpecialisedHandlerT *>(this)->set(val);
   }
-  
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 template<typename FieldType>
@@ -48,6 +48,8 @@ class VoxelBlockHandler :
   DataHandlerBase<VoxelBlockHandler<FieldType>, se::VoxelBlock<FieldType> > {
 
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  
   VoxelBlockHandler(se::VoxelBlock<FieldType>* ptr, Eigen::Vector3i v) : 
     _block(ptr), _voxel(v) {}
 
@@ -67,6 +69,8 @@ public:
 template<typename FieldType>
 class NodeHandler: DataHandlerBase<NodeHandler<FieldType>, se::Node<FieldType> > {
   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  
     NodeHandler(se::Node<FieldType>* ptr, int i) : _node(ptr), _idx(i) {}
 
     typename se::Node<FieldType>::value_type get() {

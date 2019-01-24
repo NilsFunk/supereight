@@ -165,6 +165,7 @@ inline void gs2rgb(double h, unsigned char rgbw[4]) {
 }
 
 typedef struct Triangle {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Eigen::Vector3f vertexes[3];
   Eigen::Vector3f vnormals[3];
   Eigen::Vector3f normal;
@@ -244,8 +245,6 @@ typedef struct Triangle {
     } 
     return points;
   }
-
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } Triangle;
 
 struct TrackData {
