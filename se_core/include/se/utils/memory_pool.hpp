@@ -56,19 +56,26 @@ class MemoryPool {
       }
     }
 
-   size_t size() const { return current_block_; };
+    size_t size() const { return current_block_; };
 
-   BlockType* operator[](const size_t i) const {
-      const int page_idx = i / pagesize_;
-      const int ptr_idx = i % pagesize_;
-      return pages_[page_idx] + (ptr_idx);
-   }
+    BlockType* operator[](const size_t i) const {
+        const int page_idx = i / pagesize_;
+        const int ptr_idx = i % pagesize_;
+        return pages_[page_idx] + (ptr_idx);
+    }
 
-  
+    size_t getReserve() {
+      return reserved_;
+    }    
+
     void reserve(const size_t n){
       bool requires_realloc = (current_block_ + n) > reserved_;
       if(requires_realloc) expand(n);
     }
+
+    void setup(const size_t n){
+      reset(n);
+    }    
 
     BlockType * acquire_block(){
       // Fetch-add returns the value before increment
@@ -99,6 +106,18 @@ class MemoryPool {
       // std::cout << "Allocating " << n << " blocks" << std::endl;
       const int new_pages = std::ceil(n/pagesize_);
       for(int p = 0; p <= new_pages; ++p){
+        pages_.push_back(new BlockType[pagesize_]);
+        ++num_pages_;
+        reserved_ += pagesize_;
+      }
+      // std::cout << "Reserved " << reserved_ << " blocks" << std::endl;
+    }
+
+    void reset(const size_t n){
+
+      // std::cout << "Allocating " << n << " blocks" << std::endl;
+      const int new_pages = std::ceil(n/pagesize_);
+      for(int p = 0; p < new_pages-1; ++p){
         pages_.push_back(new BlockType[pagesize_]);
         ++num_pages_;
         reserved_ += pagesize_;
