@@ -84,7 +84,10 @@ protected:
     Node *child_ptr_[8];
 private:
     friend std::ofstream& internal::serialise <> (std::ofstream& out, Node& node);
+    friend std::ofstream& internal::serialiseMultilevel <> (std::ofstream& out,
+        VoxelBlock& node);
     friend void internal::deserialise <> (Node& node, std::ifstream& in);
+    friend void internal::deserialiseMultilevel <> (VoxelBlock& node, std::ifstream& in);
 };
 
 template <typename T>
