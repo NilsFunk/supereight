@@ -70,15 +70,16 @@ DenseSLAMSystem::DenseSLAMSystem(const Eigen::Vector2i& inputSize,
   computation_size_(inputSize),
   vertex_(computation_size_.x(), computation_size_.y()),
   normal_(computation_size_.x(), computation_size_.y()),
-  float_depth_(computation_size_.x(), computation_size_.y()),
-  reduction_output_(8 * 32)
+  float_depth_(computation_size_.x(), computation_size_.y())
   {
     this->init_pose_ = initPose.block<3,1>(0,3);
     this->volume_dimension_ = volumeDimensions;
     this->volume_resolution_ = volumeResolution;
     this->mu_ = config.mu;
-    pose_ = initPose;
-    raycast_pose_ = initPose;
+    pose_ = initPose; // Eigen::Matrix4f
+    raycast_pose_ = initPose; //Eigen::Matrix4f
+    std::cout << "SUCCESS: ^ \n " << std::endl;
+
 
     this->iterations_.clear();
     for (std::vector<int>::iterator it = pyramid.begin();
@@ -91,6 +92,7 @@ DenseSLAMSystem::DenseSLAMSystem(const Eigen::Vector2i& inputSize,
     if (getenv("KERNEL_TIMINGS"))
       print_kernel_timing = true;
 
+    reduction_output_.resize(8 * 32);
     // internal buffers to initialize
     tracking_result_.resize(computation_size_.x() * computation_size_.y());
 
