@@ -12,13 +12,11 @@ namespace se {
 
       public:
         Image(const unsigned w, const unsigned h) : width_(w), height_(h) {
-          std::cout << "Called image constructor 01" << std::endl;
           assert(width_ > 0 && height_ > 0);
           data_.resize(width_ * height_);
         }
 
         Image(const unsigned w, const unsigned h, const class_T& val) : width_(w), height_(h) {
-          std::cout << "Called image constructor 02" << std::endl;
           assert(width_ > 0 && height_ > 0);
           data_.resize(width_ * height_, val);
         }
