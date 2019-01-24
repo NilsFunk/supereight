@@ -484,8 +484,8 @@ Node<T> * Octree<T>::insert(const int x, const int y, const int z,
     const int depth) {
 
   // Make sure we have enough space on buffers
-  const int leaves_level = max_depth - math::log2_const(blockSide);
-  if(depth > (max_depth - leaves_level)) {
+  const int leaves_level = max_level_ - math::log2_const(blockSide);
+  if(depth > (max_level_ - math::log2_const(blockSide))) {
     block_buffer_.reserve(1);
     nodes_buffer_.reserve(leaves_level);
   } else {
@@ -822,7 +822,8 @@ template <typename T>
 bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
 
   int leaves_level = max_level_ - log2(blockSide);
-  nodes_buffer_.reserve(num_tasks);
+  if (target_level !=leaves_level)
+    nodes_buffer_.reserve(num_tasks);
 
 #pragma omp parallel for
   for (int i = 0; i < num_tasks; i++){
@@ -920,7 +921,8 @@ void Octree<T>::load(const std::string& filename) {
   {
     std::cout << "Loading octree from disk... " << filename << std::endl;
     std::ifstream is (filename, std::ios::binary); 
-    int size, dim;
+    int size; 
+    float dim;
     is.read(reinterpret_cast<char *>(&size), sizeof(size));
     is.read(reinterpret_cast<char *>(&dim), sizeof(dim));
 
@@ -928,7 +930,7 @@ void Octree<T>::load(const std::string& filename) {
     
     size_t n = 0;
     is.read(reinterpret_cast<char *>(&n), sizeof(size_t));
-    nodes_buffer_.reserve(n);
+    nodes_buffer_.setup(n);
     std::cout << "Reading " << n << " nodes " << std::endl;
     for(int i = 0; i < n; ++i) {
       Node<T> tmp;
@@ -946,7 +948,7 @@ void Octree<T>::load(const std::string& filename) {
       Eigen::Vector3i coords = tmp.coordinates();
       VoxelBlock<T> * n = 
         static_cast<VoxelBlock<T> *>(insert(coords(0), coords(1), coords(2), keyops::level(tmp.code_)));
-      std::memcpy(n->getBlockRawPtr(), tmp.getBlockRawPtr(), sizeof(*(tmp.getBlockRawPtr())));
+      std::memcpy(n->getBlockRawPtr(), tmp.getBlockRawPtr(), 512*sizeof(*(tmp.getBlockRawPtr())));
     }
   }
 }
