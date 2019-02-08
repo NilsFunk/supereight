@@ -11,7 +11,7 @@ add_subdirectory(se_shared)
 add_subdirectory(se_tools)
 
 # Build se_denseslam lib
-option(WITH_OPENMP "Compile with OpenMP" ON)
+option(WITH_OPENMP "Compile with OpenMP" OFF)
 
 
 set(BUILT_LIBS "")

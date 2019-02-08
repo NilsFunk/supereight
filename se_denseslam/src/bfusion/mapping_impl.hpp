@@ -37,6 +37,8 @@
 #include <se/constant_parameters.h>
 #include <se/image/image.hpp>
 #include "bspline_lookup.cc"
+#include <atomic>
+#include <omp.h>
 
 float interpDepth(const se::Image<float>& depth, const Eigen::Vector2f proj) {
   // https://en.wikipedia.org/wiki/Bilinear_interpolation
@@ -156,7 +158,7 @@ static inline float applyWindow(const float occupancy, const float ,
 
 struct bfusion_update {
   template <typename DataHandlerT>
-  void operator()(DataHandlerT& handler, const Eigen::Vector3i&, 
+  void operator()(DataHandlerT& handler, const Eigen::Vector3i& pix, 
       const Eigen::Vector3f& pos, const Eigen::Vector2f& pixel) {
 
     const Eigen::Vector2i px = pixel.cast <int> ();
@@ -170,20 +172,49 @@ struct bfusion_update {
     if(sample == 0.5f) return;
     sample = se::math::clamp(sample, 0.03f, 0.97f);
     auto data = handler.get();
+    
+    float prev_occ = data.x;
+
     const double delta_t = timestamp - data.y;
     data.x = applyWindow(data.x, SURF_BOUNDARY, delta_t, CAPITAL_T);
     data.x = se::math::clamp(updateLogs(data.x, sample), BOTTOM_CLAMP, TOP_CLAMP);
     data.y = timestamp;
+
+    if (occupiedVoxels != NULL) {
+      if (prev_occ >= 0.5 && data.x < 0.5) {
+#pragma omp critical
+        freedVoxels->push_back(pix);
+      } else if (prev_occ <= 0.5 && data.x > 0.5) {  
+#pragma omp critical
+        occupiedVoxels->push_back(pix);     
+#pragma omp critical        
+        (*count_)++; 
+      }
+    }
+
     handler.set(data);
   } 
 
   bfusion_update(const float * d, const Eigen::Vector2i framesize, float n, 
-      float t): depth(d), depthSize(framesize), noiseFactor(n), timestamp(t){};
+      float t): depth(d), depthSize(framesize), noiseFactor(n), timestamp(t){
+  };
 
+  bfusion_update(const float * d, const Eigen::Vector2i framesize, float n, 
+      float t, 
+      std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *occupiedVoxels_,
+      std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *freedVoxels_, int *count) : 
+        depth(d), depthSize(framesize), noiseFactor(n), timestamp(t), count_(count) {
+    occupiedVoxels = occupiedVoxels_;
+    freedVoxels = freedVoxels_;
+  };
+
+  int *count_ = NULL;
   const float * depth;
   Eigen::Vector2i depthSize;
   float noiseFactor;
   float timestamp;
+  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *occupiedVoxels = NULL;
+  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *freedVoxels = NULL;
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
