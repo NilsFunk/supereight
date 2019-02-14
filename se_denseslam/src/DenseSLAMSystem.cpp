@@ -285,35 +285,19 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
         float_depth[x + y*computation_size_.x()] = float_depth_.data()[x + y*computation_size_.x()];
       }
     }
-    Eigen::Matrix4f pose = pose_;
-
-    if (frame == 0) {
-      std::ofstream myfile;
-      myfile.open ("/home/nils/workspace_ptp/pose_image_frame_0-2.txt");
-      myfile << "GT POSE: \n" << pose << "\n";
-      myfile << "I" << std::endl;
-      int idx = 0;
-      for (int y = 0; y < computation_size_.y(); y++) {
-        for (int x = 0; x < computation_size_.x(); x++) {
-          myfile << float_depth[x + y*computation_size_.x()] << std::endl;
-        }
-      }
-      myfile.close();
-    }
 
     unsigned int allocated = 0;
     if(std::is_same<FieldType, SDF>::value) {
      allocated  = buildAllocationList(allocation_list_.data(),
          allocation_list_.capacity(),
-        *volume_._map_index, pose, getCameraMatrix(k), float_depth,
+        *volume_._map_index, pose_, getCameraMatrix(k), float_depth,
         computation_size_, volume_._size,
       voxelsize, 2*mu);
     } else if(std::is_same<FieldType, OFusion>::value) {
      allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(),
          *volume_._map_index,
-         pose, getCameraMatrix(k), float_depth, computation_size_, voxelsize,
+         pose_, getCameraMatrix(k), float_depth, computation_size_, voxelsize,
          compute_stepsize, step_to_depth, 6*mu);
-     std::cout << "ALLOCATED = " << allocated << std::endl;
     }
 
     volume_._map_index->allocate(allocation_list_.data(), allocated);
@@ -322,7 +306,7 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
       struct sdf_update funct(float_depth,
           Eigen::Vector2i(computation_size_.x(), computation_size_.y()), mu, 100);
       se::functor::projective_map(*volume_._map_index,
-          Sophus::SE3f(pose).inverse(),
+          Sophus::SE3f(pose_).inverse(),
           getCameraMatrix(k),
           Eigen::Vector2i(computation_size_.x(), computation_size_.y()),
           funct);
@@ -330,18 +314,14 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
 
       float timestamp = (1.f/30.f)*frame;
 
-      int count = 0;
-
       struct bfusion_update funct(float_depth,
-          Eigen::Vector2i(computation_size_.x(), computation_size_.y()), mu, timestamp, occupied_voxels, freed_voxels, &count);
+          Eigen::Vector2i(computation_size_.x(), computation_size_.y()), mu, timestamp, occupied_voxels, freed_voxels);
 
       se::functor::projective_map(*volume_._map_index,
-          Sophus::SE3f(pose).inverse(),
+          Sophus::SE3f(pose_).inverse(),
           getCameraMatrix(k),
           Eigen::Vector2i(computation_size_.x(), computation_size_.y()),
           funct);
-
-      std::cout << "COUNT = " << count << std::endl;
     }
 
     // if(frame % 15 == 0) {
@@ -358,6 +338,79 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
   }
   return true;
 }
+
+bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integration_rate,
+    float mu, unsigned int frame, 
+     std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *updatedBlocks) {
+
+  if (((frame % integration_rate) == 0) || (frame <= 3)) {
+
+    float voxelsize =  volume_._dim/volume_._size;
+    int num_vox_per_pix = volume_._dim/((se::VoxelBlock<FieldType>::side)*voxelsize);
+    size_t total = num_vox_per_pix * computation_size_.x() *
+      computation_size_.y();
+    allocation_list_.reserve(total);
+
+    float float_depth[computation_size_.x() * computation_size_.y()];
+    for (int y = 0; y < computation_size_.y(); y++) {
+      for (int x = 0; x < computation_size_.x(); x++) {    
+        float_depth[x + y*computation_size_.x()] = float_depth_.data()[x + y*computation_size_.x()];
+      }
+    }
+
+    unsigned int allocated = 0;
+    if(std::is_same<FieldType, SDF>::value) {
+     allocated  = buildAllocationList(allocation_list_.data(),
+         allocation_list_.capacity(),
+        *volume_._map_index, pose_, getCameraMatrix(k), float_depth,
+        computation_size_, volume_._size,
+      voxelsize, 2*mu);
+    } else if(std::is_same<FieldType, OFusion>::value) {
+     allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(),
+         *volume_._map_index,
+         pose_, getCameraMatrix(k), float_depth, computation_size_, voxelsize,
+         compute_stepsize, step_to_depth, 6*mu);
+    }
+
+    volume_._map_index->allocate(allocation_list_.data(), allocated);
+
+    if(std::is_same<FieldType, SDF>::value) {
+      struct sdf_update funct(float_depth,
+          Eigen::Vector2i(computation_size_.x(), computation_size_.y()), mu, 100);
+      se::functor::projective_map(*volume_._map_index,
+          Sophus::SE3f(pose_).inverse(),
+          getCameraMatrix(k),
+          Eigen::Vector2i(computation_size_.x(), computation_size_.y()),
+          funct);
+    } else if(std::is_same<FieldType, OFusion>::value) {
+
+      float timestamp = (1.f/30.f)*frame;
+
+      struct bfusion_update funct(float_depth,
+          Eigen::Vector2i(computation_size_.x(), computation_size_.y()), mu, timestamp, updatedBlocks);
+
+      se::functor::projective_map(*volume_._map_index,
+          Sophus::SE3f(pose_).inverse(),
+          getCameraMatrix(k),
+          Eigen::Vector2i(computation_size_.x(), computation_size_.y()),
+          funct);
+    }
+
+    // if(frame % 15 == 0) {
+    //   std::stringstream f;
+    //   f << "./slices/integration_" << frame << ".vtk";
+    //   save3DSlice(*volume_._map_index, Eigen::Vector3i(0, 200, 0),
+    //       Eigen::Vector3i(volume_._size, 201, volume_._size),
+    //       Eigen::Vector3i::Constant(volume_._size), f.str().c_str());
+    //   f.str("");
+    //   f.clear();
+    // }
+  } else {
+    return false;
+  }
+  return true;
+}
+
 
 void DenseSLAMSystem::dump_volume(std::string ) {
 

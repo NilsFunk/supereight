@@ -57,7 +57,6 @@ namespace functor {
         /* Retrieve the active list */ 
         const se::MemoryPool<se::VoxelBlock<FieldType> >& block_array = 
           _map.getBlockBuffer();
-        std::cout << "MemoryBuffer SIZE = " << block_array.size() << std::endl;
 
         /* Predicates definition */
         const float voxel_size = _map.dim()/_map.size();
@@ -84,13 +83,15 @@ namespace functor {
         unsigned int ylast = blockCoord(1) + blockSide;
         unsigned int zlast = blockCoord(2) + blockSide;
 
-        for(z = blockCoord(2); z < zlast; ++z)
+        block->occupancyUpdated(false);
+
+        for(z = blockCoord(2); z < zlast; ++z) {
           for (y = blockCoord(1); y < ylast; ++y){
             Eigen::Vector3i pix = Eigen::Vector3i(blockCoord(0), y, z);
             Eigen::Vector3f start = _Tcw * Eigen::Vector3f((pix(0)) * voxel_size, 
                 (pix(1)) * voxel_size, (pix(2)) * voxel_size);
             Eigen::Vector3f camerastart = _K.topLeftCorner<3,3>() * start;
-//#pragma omp simd
+#pragma omp simd
             for (unsigned int x = 0; x < blockSide; ++x){
               pix(0) = x + blockCoord(0); 
               const Eigen::Vector3f camera_voxel = camerastart + (x*cameraDelta);
@@ -109,6 +110,7 @@ namespace functor {
               _function(handler, pix, pos, pixel);
             }
           }
+        }
         block->active(is_visible);
       }
 
@@ -119,7 +121,7 @@ namespace functor {
         Eigen::Vector3f base_cam = _Tcw * (voxel_size * voxel.cast<float> ());
         Eigen::Vector3f basepix_hom = _K.topLeftCorner<3,3>() * base_cam;
 
-// #pragma omp simd
+#pragma omp simd
         for(int i = 0; i < 8; ++i) {
           const Eigen::Vector3i dir =  Eigen::Vector3i((i & 1) > 0, (i & 2) > 0, (i & 4) > 0);
           const Eigen::Vector3f vox_cam = base_cam + dir.cast<float>().cwiseProduct(delta); 
@@ -143,8 +145,7 @@ namespace functor {
         build_active_list();
         const float voxel_size = _map.dim() / _map.size();
         size_t list_size = _active_list.size();
-//#pragma omp parallel for
-        std::cout << "List Size = " << list_size << std::endl;
+#pragma omp parallel for
         for(unsigned int i = 0; i < list_size; ++i){
           update_block(_active_list[i], voxel_size);
         }
@@ -152,7 +153,7 @@ namespace functor {
 
         auto& nodes_list = _map.getNodesBuffer();
         list_size = nodes_list.size();
-// #pragma omp parallel for
+#pragma omp parallel for
           for(unsigned int i = 0; i < list_size; ++i){
             update_node(nodes_list[i], voxel_size);
          }

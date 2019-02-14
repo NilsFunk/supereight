@@ -180,18 +180,29 @@ struct bfusion_update {
     data.x = se::math::clamp(updateLogs(data.x, sample), BOTTOM_CLAMP, TOP_CLAMP);
     data.y = timestamp;
 
-    if (occupiedVoxels != NULL) {
-      if (prev_occ >= 0.5 && data.x < 0.5) {
+    if (occupiedVoxels_ != NULL) {
+      bool isVoxel = std::is_same<DataHandlerT, VoxelBlockHandler<OFusion>>::value;
+      if (prev_occ >= 0.5 && data.x < 0.5 && isVoxel) {
 #pragma omp critical
-        freedVoxels->push_back(pix);
-      } else if (prev_occ <= 0.5 && data.x > 0.5) {  
+        freedVoxels_->push_back(pix);
+      } else if (prev_occ <= 0.5 && data.x > 0.5 && isVoxel) {  
 #pragma omp critical
-        occupiedVoxels->push_back(pix);     
-#pragma omp critical        
-        (*count_)++; 
+        occupiedVoxels_->push_back(pix);     
       }
     }
 
+    if (updatedBlocks_ != NULL) {
+      bool isVoxel          = std::is_same<DataHandlerT, VoxelBlockHandler<OFusion>>::value;
+      bool voxelOccupied    = prev_occ <= 0.5 && data.x > 0.5;
+      bool voxelFreed       = prev_occ >= 0.5 && data.x < 0.5;
+      bool occupancyUpdated = handler.occupancyUpdated();
+      if (isVoxel && !occupancyUpdated && (voxelOccupied || voxelFreed)) {
+#pragma omp critical
+        updatedBlocks_->push_back(handler.getNodeCoordinates());
+#pragma omp critical
+        handler.occupancyUpdated(true);
+      }
+    }
     handler.set(data);
   } 
 
@@ -201,20 +212,26 @@ struct bfusion_update {
 
   bfusion_update(const float * d, const Eigen::Vector2i framesize, float n, 
       float t, 
-      std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *occupiedVoxels_,
-      std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *freedVoxels_, int *count) : 
-        depth(d), depthSize(framesize), noiseFactor(n), timestamp(t), count_(count) {
-    occupiedVoxels = occupiedVoxels_;
-    freedVoxels = freedVoxels_;
+      std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *occupiedVoxels,
+      std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *freedVoxels) : 
+        depth(d), depthSize(framesize), noiseFactor(n), timestamp(t), occupiedVoxels_(occupiedVoxels), freedVoxels_(freedVoxels) {
   };
 
-  int *count_ = NULL;
+  bfusion_update(const float * d, const Eigen::Vector2i framesize, float n,
+      float t, std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *updatedBlocks): 
+        depth(d), depthSize(framesize), noiseFactor(n), timestamp(t), 
+        updatedBlocks_(updatedBlocks) {
+  };
+
   const float * depth;
   Eigen::Vector2i depthSize;
   float noiseFactor;
   float timestamp;
-  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *occupiedVoxels = NULL;
-  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *freedVoxels = NULL;
+
+  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *occupiedVoxels_ = NULL;
+  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *freedVoxels_ = NULL;
+
+  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *updatedBlocks_ = NULL;
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };

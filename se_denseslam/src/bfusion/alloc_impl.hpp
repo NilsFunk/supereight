@@ -127,7 +127,6 @@ size_t buildOctantList(HashType* allocationList, size_t reserved,
       }
     }
   }
-  std::cout << "voxelCount = " << voxelCount << std::endl;
   return (size_t) voxelCount >= reserved ? reserved : (size_t) voxelCount;
 }
 #endif

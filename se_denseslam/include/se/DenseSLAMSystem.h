@@ -206,6 +206,11 @@ class DenseSLAMSystem {
                      std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *occupied_voxels,
                      std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *freed_voxels); 
 
+
+    bool integration(const Eigen::Vector4f& k, 
+                 unsigned int           integration_rate,
+                 float mu, unsigned int frame, 
+                  std::vector<Eigen::Vector3i, Eigen::aligned_allocator<Eigen::Vector3i>> *updatedBlocks); 
     /**
      * Raycast the 3D reconstruction after integration to update the values of
      * the TSDF. This is the fourth stage of the pipeline.
