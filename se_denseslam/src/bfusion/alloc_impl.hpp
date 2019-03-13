@@ -33,33 +33,73 @@
 #define BFUSION_ALLOC_H
 #include <se/utils/math_utils.h>
 
-/* Compute step size based on distance travelled along the ray */ 
+/**
+ * Compute step size based on distance travelled along the ray
+ * @param[in]  dist_travelled       Distance traveled from the surface boundary in 
+ *                                  the direction of the camera origin
+ * @param[in]  hf_band              band = 6*mu !!! Unsure if this is supposed to be 3*mu (i.e half the band) !!!
+ * @param[in]  voxel_size           Size of a voxel edge in [m]
+ * \return step size along the ray in [m]
+ */
 static inline float compute_stepsize(const float dist_travelled, const float hf_band,
-    const float voxelSize) {
+    const float voxel_size) {
   float new_step;
   float half = hf_band * 0.5f;
-  if(dist_travelled < hf_band) new_step = voxelSize;
-  else if(dist_travelled < hf_band + half) new_step = 10.f * voxelSize; 
-  else new_step = 30.f * voxelSize;
+  if(dist_travelled < hf_band) new_step = voxel_size;
+  else if(dist_travelled < hf_band + half) new_step = 10.f * voxel_size; 
+  else new_step = 30.f * voxel_size;
+
+  new_step = voxel_size;
+
   return new_step;
 }
 
-/* Compute octree level given a step size */ 
+/** 
+ * Compute octree level for a node to be allocated given a step size. 
+ * Given the current step size options (1x voxel size, 10x voxel size, 30x voxel_size), 
+ * the octree level is either max_depth (1 voxel), max_depth - 4 (16 voxels) 
+ * or max_depth - 5 (32 voxels)
+ * @param[in]  step                Step size of the raycast in [m]
+ * @param[in]  max_depth           Maximum depth of the tree (i.e. log2(size))
+ * @param[in]  voxel_size           Size of a voxel edge in [m]
+ * \return octree level of the node to be allocated
+ */
 static inline int step_to_depth(const float step, const int max_depth, 
-    const float voxelsize) {
-  return static_cast<int>(floorf(std::log2f(voxelsize/step)) + max_depth);
+    const float voxel_size) {
+  // return static_cast<int>(floorf(std::log2f(voxel_size/step)) + max_depth);
+  return static_cast<int>(max_depth);
 }
 
+/**
+ * brief Allocates nodes and voxel blocks for each value in the depth image.
+ * The size of each node depends on the distance to the surface and is allocated 
+ * using a ray casting algorithm.
+ * @param[out] allocationList      List of morton codes describing the nodes to be allocated
+ * @param[in]  reserved            Capacity of the allocationList
+ * @param[in]  map_index           Octree
+ * @param[in]  pose                Current camera pose
+ * @param[in]  K                   Camera intrinsics
+ * @param[in]  depthmap            Current depth image
+ * @param[in]  image_size          Size of the depth image (width, height)
+ * @param[in]  voxel_size          Size of a voxel edge in [m]
+ * @param[in]  compute_stepsize    (optional) function to compute the step size of the raycasting
+ * @param[in]  step_to_depth       (optional) function to compute the size of the allocated node for a given step size
+ * @param[in]  band                band = 6*mu, mu is standard deviation of the surface thickness.
+ *                                 3*mu contains most of the information to one side of the surface.
+ *                                 6*mu represents the with of the entire band (before and after the surface)
+ *                                 containing most information
+ * \return Number of allocated nodes.
+ */
 template <typename FieldType, 
           template <typename> class OctreeT, typename HashType,
           typename StepF, typename DepthF>
 size_t buildOctantList(HashType* allocationList, size_t reserved,
     OctreeT<FieldType>& map_index, const Eigen::Matrix4f& pose, 
-    const Eigen::Matrix4f& K, const float *depthmap, const Eigen::Vector2i &imageSize, 
-    const float voxelSize, StepF compute_stepsize, DepthF step_to_depth,
+    const Eigen::Matrix4f& K, const float *depthmap, const Eigen::Vector2i &image_size, 
+    const float voxel_size, StepF compute_stepsize, DepthF step_to_depth,
     const float band) {
 
-  const float inverseVoxelSize = 1.f/voxelSize;
+  const float inversevoxel_size = 1.f/voxel_size;
   Eigen::Matrix4f invK = K.inverse();
   const Eigen::Matrix4f kPose = pose * invK;
   const int size = map_index.size();
@@ -67,66 +107,70 @@ size_t buildOctantList(HashType* allocationList, size_t reserved,
   const int leaves_depth = max_depth - se::math::log2_const(OctreeT<FieldType>::blockSide);
 
 #ifdef _OPENMP
-  std::atomic<unsigned int> voxelCount;
+  std::atomic<unsigned int> node_count;
   std::atomic<unsigned int> leavesCount;
 #else
-  unsigned int voxelCount;
+  unsigned int node_count;
 #endif
 
-  int y;
   const Eigen::Vector3f camera = pose.topRightCorner<3, 1>();
-  voxelCount = 0;
-#pragma omp parallel for \
-  private(y)
-  for (y = 0; y < imageSize.y(); y++) {
-    for (int x = 0; x < imageSize.x(); x++) {
-      if(depthmap[x + y*imageSize.x()] == 0)
+  // Counter for the total number of nodes or voxel blocks to be allocated
+  node_count = 0;
+#pragma omp parallel for
+  for (unsigned int y = 0; y < image_size.y(); y++) {
+    for (unsigned int x = 0; x < image_size.x(); x++) {
+      if(depthmap[x + y*image_size.x()] == 0)
         continue;
       int tree_depth = max_depth; 
-      float stepsize = voxelSize;
-      const float depth = depthmap[x + y*imageSize.x()];
+      float stepsize = voxel_size;
+      const float depth = depthmap[x + y*image_size.x()];
+      // Convert pixel to worldVertex -- P_world = [R|T] * K^-1 * depth * [u, v, 1]^T
       Eigen::Vector3f worldVertex = (kPose * Eigen::Vector3f((x + 0.5f) * depth, 
             (y + 0.5f) * depth, depth).homogeneous()).head<3>();
 
       Eigen::Vector3f direction = (camera - worldVertex).normalized();
-      const Eigen::Vector3f origin = worldVertex - (band * 0.5f) * direction;
+
+      // Start raycasting at surface boundary -- surface boundary = measured surface - surface thickness
+      const Eigen::Vector3f origin = worldVertex - (band * 0.5f) * direction; // TODO: Why doesn't he start immediately at the surface?
       const float dist = (camera - origin).norm(); 
       Eigen::Vector3f step = direction*stepsize;
 
-      Eigen::Vector3f voxelPos = origin;
+      Eigen::Vector3f voxel_pos = origin;
       float travelled = 0.f;
       for(; travelled < dist; travelled += stepsize){
 
-        Eigen::Vector3f voxelScaled = (voxelPos * inverseVoxelSize).array().floor();
-        if((voxelScaled.x() < size) && (voxelScaled.y() < size) &&
-           (voxelScaled.z() < size) && (voxelScaled.x() >= 0) &&
-           (voxelScaled.y() >= 0)   && (voxelScaled.z() >= 0)){
-          const Eigen::Vector3i voxel = voxelScaled.cast<int>();
+        Eigen::Vector3f voxel_scaled = (voxel_pos * inversevoxel_size).array().floor();
+        // Check if the the voxel is inside the map volume
+        if((voxel_scaled.x() < size) && (voxel_scaled.y() < size) &&
+           (voxel_scaled.z() < size) && (voxel_scaled.x() >= 0) &&
+           (voxel_scaled.y() >= 0)   && (voxel_scaled.z() >= 0)){
+          const Eigen::Vector3i voxel = voxel_scaled.cast<int>();
           auto node_ptr = map_index.fetch_octant(voxel.x(), voxel.y(), voxel.z(), 
               tree_depth);
+          // If the node doesn't exist yet, add it to the allocation list and increase the node counter
           if(!node_ptr){
+            // Get the morton code for the corresponding voxel position and node size
             HashType k = map_index.hash(voxel.x(), voxel.y(), voxel.z(), 
                 std::min(tree_depth, leaves_depth));
-            unsigned int idx = ++(voxelCount);
+            unsigned int idx = ++(node_count);
             if(idx < reserved) {
+              // Add morton code to allocation list
               allocationList[idx] = k;
             }
+          // If the voxel block has been previously allocated make sure to activate it
           } else if(tree_depth >= leaves_depth) { 
-            static_cast<se::VoxelBlock<FieldType>*>(node_ptr)->active(true);
+            static_cast<se::VoxelBlock<FieldType>*>(node_ptr)->active(true); // TODO: Does seem unnessary as voxelblocks will be activate during allocation.
           }
         }
-        stepsize = compute_stepsize(travelled, band, voxelSize);  
-        // int last_depth = tree_depth;
-        tree_depth = step_to_depth(stepsize, max_depth, voxelSize);
-        // if(tree_depth != last_depth) {
-        //   std::cout << "Break Here!" << std::endl;
-        // }
+        stepsize = compute_stepsize(travelled, band, voxel_size);  
+
+        tree_depth = step_to_depth(stepsize, max_depth, voxel_size);
         
         step = direction*stepsize;
-        voxelPos +=step;
+        voxel_pos +=step;
       }
     }
   }
-  return (size_t) voxelCount >= reserved ? reserved : (size_t) voxelCount;
+  return (size_t) node_count >= reserved ? reserved : (size_t) node_count;
 }
 #endif

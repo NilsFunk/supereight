@@ -792,6 +792,15 @@ void Octree<T>::reserveBuffers(const int n){
   block_buffer_.reserve(n);
 }
 
+/**
+ * Allocate the nodes for a given list of morten codes. The list contains the lowest level of
+ * nodes to be allocated. There all missing parents will be allocated as well. Starting from 
+ * the root level the method allocates all nodes level by level that are neccessary to allocate
+ * the morton codes in the list.
+ * @param[in]  keys                List of morton codes describing the nodes to be allocated
+ * @param[in]  num_elem            Number of nodes to be allocated
+ * \return Success of allocation
+ */
 template <typename T>
 bool Octree<T>::allocate(key_t *keys, int num_elem){
 
@@ -801,6 +810,8 @@ bool Octree<T>::allocate(key_t *keys, int num_elem){
 std::sort(keys, keys+num_elem);
 #endif
 
+  // Eliminate duplicates of nodes to be allocated and update the number of elements.
+  // In case a node and it's parent are both in the list of keys, the parent will be deleted.
   num_elem = algorithms::unique_multiscale(keys, num_elem, SCALE_MASK);
   reserveBuffers(num_elem);
 
@@ -812,6 +823,7 @@ std::sort(keys, keys+num_elem);
   for (int level = 1; level <= leaves_level; level++){
     const key_t mask = MASK[level + shift] | SCALE_MASK;
     compute_prefix(keys, keys_at_level_, num_elem, mask);
+    // Eliminate dubplicates of equivalent parents of different childs for the current level
     last_elem = algorithms::unique_multiscale(keys_at_level_, num_elem, 
         SCALE_MASK, level);
     success = allocate_level(keys_at_level_, last_elem, level);
@@ -819,6 +831,14 @@ std::sort(keys, keys+num_elem);
   return success;
 }
 
+/**
+ * Allocate the nodes for a list of morten codes for a given level. The list is assumed to have
+ * no dubplicates. However, duplicates will not cause an error, rather than an overhead.
+ * @param[in]  keys                List of morton codes describing the nodes to be allocated at a given level
+ * @param[in]  num_elem            Number of nodes to be allocated
+ * @param[in]  target_level        The level the nodes should be allocated at
+ * \return Success of allocation
+ */
 template <typename T>
 bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
 

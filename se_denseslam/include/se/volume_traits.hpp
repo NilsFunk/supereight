@@ -71,6 +71,36 @@ struct voxel_traits<OFusion> {
   static inline value_type initValue(){ return {0.f, 0.f}; }
 };
 
+// /******************************************************************************
+//  *
+//  * Bayesian Fusion voxel traits and algorithm specificic defines
+//  *
+// ****************************************************************************/
+// #define DELTA_E 3.f
+
+// typedef struct {
+//     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//     float x; // occupancy
+//     Eigen::Vector3i closestObstacle;
+//     float distance;
+//     bool toRaise;
+//     double y; // timestamp
+// } OFusion;
+
+// template<>
+// struct voxel_traits<OFusion> {
+//   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//   typedef struct  {
+//     float x; // occupancy
+//     Eigen::Vector3i closestObstacle;
+//     float distance;
+//     bool toRaise;
+//     double y; // timestamp
+//   } value_type;
+//   static inline value_type empty(){ return {0.f, Eigen::Vector3i(-1,-1,-1), DELTA_E, false, 0.f}; }
+//   static inline value_type initValue(){ return {0.0f, Eigen::Vector3i(-1,-1,-1), 0, false, 0.f}; }
+// };
+
 // Windowing parameters
 #define DELTA_T   1.f
 #define CAPITAL_T 4.f
