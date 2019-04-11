@@ -19,3 +19,4 @@ include_directories(../../se_core/include
 
 add_subdirectory(multiscale_fusion)
 add_subdirectory(multiscale_integration)
+add_subdirectory(multiscale_weighted_propagation)

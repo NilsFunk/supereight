@@ -34,13 +34,14 @@
 #define MOVEMENT 0
 
 // Number of frames to move from start to end position
-#define FRAMES 16
+#define FRAMES 32
 
 // Activate (1) and deactivate (0) depth dependent noise
 #define NOISE 0
 
 typedef struct ESDF{
   float x;
+  float x_last;
   float delta;
   int   y;
   int   delta_y;
@@ -49,8 +50,8 @@ typedef struct ESDF{
 template <>
 struct voxel_traits<ESDF> {
   typedef ESDF value_type;
-  static inline value_type empty(){ return     {0.f, 0.f, 0, 0}; }
-  static inline value_type initValue(){ return {1.f, 0.f, 0, 0}; }
+  static inline value_type empty(){ return     {0.f, 0.f, 0.f, 0, 0}; }
+  static inline value_type initValue(){ return {1.f, 1.f, 0.f, 0, 0}; }
 };
 
 struct camera_parameter {
@@ -263,22 +264,58 @@ void propagate_down(se::VoxelBlock<T>* block, const int scale) {
         for (int x = 0; x < side; x += stride) {
           const Eigen::Vector3i parent = base + Eigen::Vector3i(x, y, z);
           auto data = block->data(parent, curr_scale);
+
+          float virt_sample = data.delta*float(data.y - 1) + data.x;
+          typedef voxel_traits<T> traits_type;
+          typedef typename traits_type::value_type value_type;
+          value_type curr_list[8];
+          Eigen::Vector3i vox_list[8];
+          float sum(0);
+          int index(0);
+
           for (int k = 0; k < stride; k += stride/2)
             for (int j = 0; j < stride; j += stride/2)
               for (int i = 0; i < stride; i += stride/2) {
                 const Eigen::Vector3i vox = parent + Eigen::Vector3i(i, j, k);
-                auto curr = block->data(vox, curr_scale - 1);
 
-                // Update SDF value (with 0 <= x_update <= MAX_DIST)
-                curr.x = std::max(std::min(MAX_DIST, curr.x + data.delta), 0.f);
+//                auto curr = block->data(vox, curr_scale - 1);
+//
+//                // Update SDF value (with 0 <= x_update <= MAX_DIST)
+//                curr.x = std::max(std::min(curr.x + data.delta, MAX_DIST), 0.f);
+//
+//                // Update weight (with 0 <= y <= MAX_WEIGHT)
+//                curr.y = std::min(data.delta_y + curr.y, MAX_WEIGHT);
+//
+//                curr.delta = data.delta;
+//                curr.delta_y = data.delta_y;
+//                block->data(vox, curr_scale - 1, curr);
 
-                // Update weight (with 0 <= y <= MAX_WEIGHT)
-                curr.y = std::min(data.delta_y + 1, MAX_WEIGHT);
+                vox_list[index] = parent + Eigen::Vector3i(i, j, k);
+                auto curr = block->data(vox_list[index], curr_scale -1);
+                curr.delta = virt_sample - curr.x;
+                sum += curr.delta;
 
-                curr.delta = data.delta;
-                curr.delta_y =data.delta_y;
-                block->data(vox, curr_scale - 1, curr);
+                curr_list[index] = curr;
+                index++;
               }
+
+          for (int i = 0; i < 8; i++) {
+            // Update delta_x
+            if (sum != 0)
+              curr_list[i].delta = data.delta*curr_list[i].delta/sum*8;
+
+            // Update x
+            curr_list[i].x = curr_list[i].y == 0 ? data.x :
+                curr_list[i].x += curr_list[i].delta;
+
+            // Update weight (with 0 <= y <= MAX_WEIGHT)
+            curr_list[i].y = curr_list[i].y == 0 ? data.y :
+                             std::min(curr_list[i].y + data.delta_y, MAX_WEIGHT);
+            curr_list[i].delta_y =data.delta_y;
+
+            block->data(vox_list[i], curr_scale - 1, curr_list[i]);
+          }
+
           data.delta = 0;
           data.delta_y = 0;
           block->data(parent, curr_scale, data);
@@ -304,23 +341,31 @@ void propagate_up(se::VoxelBlock<T>* block, const int scale) {
             for (int j = 0; j < stride; j += stride/2)
               for (int i = 0; i < stride; i += stride/2) {
                 auto tmp = block->data(curr + Eigen::Vector3i(i, j, k), curr_scale);
-                mean += tmp.x;
-                weight += tmp.y;
-                num_samples++;
+                if (tmp.y != 0) {
+                  mean += tmp.x;
+                  weight += tmp.y;
+                  num_samples++;
+                }
               }
 
           auto data = block->data(curr, curr_scale + 1);
 
-          // Update SDF value to mean of its children
-          mean /= num_samples;
-          data.x = mean;
+          if (num_samples != 0) {
+            // Update SDF value to mean of its children
+            mean /= num_samples;
+            data.x = mean;
 
-          // Update weight (round up if > 0.5, round down otherwise)
-          weight /= num_samples;
-          if(int(weight - 0.5) == int(weight))
-            data.y = ceil(weight);
-          else
-            data.y = weight;
+            // Update weight (round up if > 0.5, round down otherwise)
+            weight /= num_samples;
+            if(int(weight - 0.5) == int(weight))
+              data.y = ceil(weight);
+            else
+              data.y = weight;
+          } else {
+            data.x = 1;
+            data.y = 0;
+          }
+
           data.delta = 0;
           data.delta_y = 0;
           block->data(curr, curr_scale + 1, data);
@@ -391,6 +436,7 @@ void foreach(float voxelsize, std::vector<se::VoxelBlock<T>*> active_list,
     }
     if(scale > 0)
       propagate_down(block, scale);
+      propagate_up(block, 0);
     if(scale < log2(side))
       propagate_up(block, scale);
   }
@@ -505,7 +551,7 @@ TEST_F(MultiscaleIntegrationTest, Integration) {
     std::stringstream f;
 
     if(MOVEMENT == 0)
-      f << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/scale_"  + std::to_string(SCALE) + "-linear_back_move-" + std::to_string(frame) + ".vtk";
+      f << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/scale_"  + std::to_string(SCALE) + "-linear_back_move_5-" + std::to_string(frame) + ".vtk";
     else
       f << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/scale_"  + std::to_string(SCALE) + "-circular_move-" + std::to_string(frame) + ".vtk";
 
