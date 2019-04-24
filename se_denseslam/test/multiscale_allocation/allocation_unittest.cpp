@@ -514,8 +514,8 @@ size_t buildOctantList(HashType*              allocation_list,
       Eigen::Vector3f allocation_origin = vertex_w - band/2*direction;
 
       // Initialization
-      int side = se::VoxelBlock<MultiresSDF>::side;
-      int allocation_size = side;
+      int side = se::VoxelBlock<FieldType>::side;
+      int allocation_size = 2*side;
 
       // Allocate free_space at higher resolution
       if (0.999*SENSOR_LIMIT < depth) {
@@ -739,12 +739,12 @@ TEST_F(MultiscaleAllocation, BoxTranslation) {
     allocation_list_.reserve(1.5*total);
 
     size_t allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_, camera_parameter_, depth_image_, voxel_size_, band_);
-    oct_.allocate(allocation_list_.data(), allocated);
+    oct_.allocate_multiscale(allocation_list_.data(), allocated);
     active_list_ = buildActiveList(oct_, camera_parameter_, voxel_size_);
     foreach(voxel_size_, active_list_, camera_parameter_, depth_image_);
     std::stringstream f;
 
-    f << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/allocation-unit_test-" + std::to_string(frame) +".vtk";
+    f << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/allocation-unittest-" + std::to_string(frame) +".vtk";
 
     save3DSlice(oct_,
                 Eigen::Vector3i(0, 0, oct_.size()/2),
@@ -752,10 +752,22 @@ TEST_F(MultiscaleAllocation, BoxTranslation) {
                 [](const auto& val) { return val.x; }, f.str().c_str());
   }
 
-  se::print_octree("/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/allocation-unit-test.ply", oct_);
+  se::print_octree("/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/allocation-unittest.ply", oct_);
 
   for (std::vector<obstacle*>::iterator box = boxes.begin(); box != boxes.end(); ++box) {
     free(*box);
   }
   free(depth_image_);
+}
+
+TEST_F(MultiscaleAllocation, AllocateLevelMultiscale) {
+  allocation_list_.reserve(1);
+  const int max_level = log2(size_);
+  const int leaves_level = max_level - se::math::log2_const(se::VoxelBlock<MultiresSDF>::side);
+  se::key_t key = oct_.hash(511, 511, 511, leaves_level);
+  allocation_list_[0] = key;
+  oct_.allocate_multiscale(allocation_list_.data(), 1);
+
+  se::print_octree("/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/allocate_level_multiscale-unittest.ply", oct_);
+
 }
