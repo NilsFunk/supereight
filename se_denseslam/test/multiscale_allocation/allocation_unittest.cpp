@@ -742,20 +742,78 @@ TEST_F(MultiscaleAllocation, BoxTranslation) {
     oct_.allocate_multiscale(allocation_list_.data(), allocated);
     active_list_ = buildActiveList(oct_, camera_parameter_, voxel_size_);
     foreach(voxel_size_, active_list_, camera_parameter_, depth_image_);
-    std::stringstream f;
+    std::stringstream f_vtk;
 
-    f << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/allocation-unittest-" + std::to_string(frame) +".vtk";
+    f_vtk << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/box_allocation-unittest-" + std::to_string(frame) +".vtk";
 
     save3DSlice(oct_,
                 Eigen::Vector3i(0, 0, oct_.size()/2),
                 Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),
-                [](const auto& val) { return val.x; }, f.str().c_str());
+                [](const auto& val) { return val.x; }, f_vtk.str().c_str());
+
+    std::stringstream f_ply;
+    f_ply << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/box_allocation-unittest-" + std::to_string(frame) + ".ply";
+    se::print_octree(f_ply.str().c_str(), oct_);
   }
 
-  se::print_octree("/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/allocation-unittest.ply", oct_);
 
   for (std::vector<obstacle*>::iterator box = boxes.begin(); box != boxes.end(); ++box) {
     free(*box);
+  }
+  free(depth_image_);
+}
+
+TEST_F(MultiscaleAllocation, SphereTranslation) {
+  std::vector<obstacle*> spheres;
+
+  // Allocate spheres in world frame
+  sphere_obstacle* sphere_close = new sphere_obstacle(voxel_size_*Eigen::Vector3f(size_*1/8, size_*2/3, size_/2), 0.3f);
+  sphere_obstacle* sphere_far   = new sphere_obstacle(voxel_size_*Eigen::Vector3f(size_*7/8, size_*1/3, size_/2), 0.3f);
+  spheres.push_back(sphere_close);
+  spheres.push_back(sphere_far);
+  generate_depth_image_ = generate_depth_image(depth_image_, spheres);
+
+  int frames = FRAMES;
+  for (int frame = 0; frame <= frames; frame++) {
+    std::cout << "Processing frame " << frame << "/" << frames << "." << std::endl;
+    Eigen::Matrix4f camera_pose = Eigen::Matrix4f::Identity();
+    Eigen::Matrix3f Rbc;
+    Rbc << 0, 0, 1, -1, 0, 0, 0, -1, 0;
+
+    Eigen::Matrix3f Rwb = Eigen::Matrix3f::Identity();
+
+    camera_pose.topLeftCorner<3,3>()  = Rwb*Rbc;
+
+    camera_pose.topRightCorner<3,1>() = (Rwb*Eigen::Vector3f(-(size_/2 + frame*size_/8), 0, size_/2) + Eigen::Vector3f(size_/2, size_/2, 0))*voxel_size_;
+
+    camera_parameter_.setPose(camera_pose);
+    generate_depth_image_(camera_parameter_);
+
+    int num_vox_per_pix = float(size_);
+    size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
+        camera_parameter_.imageSize().y();
+    allocation_list_.reserve(1.5*total);
+
+    size_t allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_, camera_parameter_, depth_image_, voxel_size_, band_);
+    oct_.allocate_multiscale(allocation_list_.data(), allocated);
+    active_list_ = buildActiveList(oct_, camera_parameter_, voxel_size_);
+    foreach(voxel_size_, active_list_, camera_parameter_, depth_image_);
+    std::stringstream f_vtk;
+
+    f_vtk << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/sphere_allocation-unittest-" + std::to_string(frame) +".vtk";
+
+    save3DSlice(oct_,
+                Eigen::Vector3i(0, 0, oct_.size()/2),
+                Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),
+                [](const auto& val) { return val.x; }, f_vtk.str().c_str());
+
+    std::stringstream f_ply;
+    f_ply << "/home/nils/workspace_ptp/catkin_ws/src/probabilistic_trajectory_planning_ros/ext/probabilistic_trajectory_planning/src/ext/supereight/se_denseslam/test/out/sphere_allocation-unittest-" + std::to_string(frame) + ".ply";
+    se::print_octree(f_ply.str().c_str(), oct_);
+  }
+
+  for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
+    free(*sphere);
   }
   free(depth_image_);
 }
