@@ -19,3 +19,4 @@ include_directories(../../se_core/include
 
 add_subdirectory(multiscale_esdf_moving_sphere)
 add_subdirectory(multiscale_tsdf_moving_camera)
+add_subdirectory(multiscale_allocation)
