@@ -736,7 +736,7 @@ TEST_F(MultiscaleAllocation, BoxTranslation) {
     int num_vox_per_pix = float(size_);
     size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
         camera_parameter_.imageSize().y();
-    allocation_list_.reserve(1.5*total);
+    allocation_list_.reserve(total);
 
     size_t allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_, camera_parameter_, depth_image_, voxel_size_, band_);
     oct_.allocate_multiscale(allocation_list_.data(), allocated);
