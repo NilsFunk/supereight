@@ -1,5 +1,4 @@
 #include <se/octree.hpp>
-#include <se/volume_traits.hpp>
 #include <se/io/ply_io.hpp>
 #include "../src/bfusion/alloc_impl.hpp"
 #include <gtest/gtest.h>
@@ -17,6 +16,13 @@
 #define RIGHT	0
 #define LEFT	1
 #define MIDDLE	2
+
+template <>
+struct voxel_traits<float> {
+  typedef float value_type;
+  static inline value_type empty(){ return 0.f; }
+  static inline value_type initValue(){ return 0.f; }
+};
 
 struct camera_parameter {
 public:
@@ -281,7 +287,7 @@ protected:
   float* depth_image_;
   camera_parameter camera_parameter_;
 
-  typedef se::Octree<MultiresSDF> OctreeT;
+  typedef se::Octree<float> OctreeT;
   OctreeT oct_;
   int size_;
   float voxel_dim_;
@@ -290,10 +296,10 @@ protected:
   float band_;
   generate_depth_image generate_depth_image_;
   std::vector<se::key_t> allocation_list_;
-  std::vector<se::VoxelBlock<MultiresSDF>*> active_list_;
+  std::vector<se::VoxelBlock<float>*> active_list_;
 };
 
-TEST_F(DenseAllocation, OFusionDenseOctantListSphere) {
+TEST_F(DenseAllocation, DenseBFusionAllocationSphere) {
   std::vector<obstacle*> spheres;
 
   // Allocate single sphere in world frame
@@ -323,7 +329,7 @@ TEST_F(DenseAllocation, OFusionDenseOctantListSphere) {
   oct_.allocate(allocation_list_.data(), allocated);
 
   std::stringstream f_ply;
-  f_ply << "./out/ofusion-dense-allocation-unittest.ply";
+  f_ply << "./out/dense-bfusion-allocation-sphere-unittest.ply";
   se::print_octree(f_ply.str().c_str(), oct_);
 
   for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
