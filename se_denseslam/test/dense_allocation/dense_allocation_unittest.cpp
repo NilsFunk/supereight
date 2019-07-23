@@ -271,6 +271,7 @@ protected:
     size_ = 512;                             // 512 x 512 x 512 voxel^3
     voxel_dim_ = 0.005;                      // 5 mm/voxel
     doubling_factor_ = 4;                    // Travelled distance to node size ratio before doubling the allocation size
+    min_allocation_size_ = 3*OctreeT::blockSide;
     dim_ = size_ * voxel_dim_;               // [m^3]
     oct_.init(size_, dim_);
     Eigen::Vector2i image_size(640, 480);    // width x height
@@ -292,6 +293,7 @@ protected:
   int size_;
   float voxel_dim_;
   int doubling_factor_;
+  int min_allocation_size_;
   float dim_;
   float band_;
   generate_depth_image generate_depth_image_;
@@ -325,7 +327,7 @@ TEST_F(DenseAllocation, DenseBFusionAllocationSphere) {
 
   size_t allocated = buildDenseOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_,
                                           camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
-                                          voxel_dim_, band_, doubling_factor_);
+                                          voxel_dim_, band_, doubling_factor_, min_allocation_size_);
   oct_.allocate(allocation_list_.data(), allocated);
 
   std::stringstream f_ply;

@@ -143,16 +143,17 @@ size_t buildOctantList(HashType*              allocationList,
 template <typename FieldType,
     template <typename> class OctreeT,
     typename HashType>
-size_t buildDenseOctantList(HashType*              allocation_list,
-                            size_t                 reserved,
-                            OctreeT<FieldType>&    oct,
-                            const Eigen::Matrix4f& camera_pose,
-                            const Eigen::Matrix4f& K,
-                            const float*           depthmap,
-                            const Eigen::Vector2i& image_size,
-                            const float            voxel_dim,
-                            const float            band,
-                            const int              doubling_ratio) {
+size_t buildDenseOctantList(HashType*               allocation_list,
+                            size_t                  reserved,
+                            OctreeT<FieldType>&     oct,
+                            const Eigen::Matrix4f&  camera_pose,
+                            const Eigen::Matrix4f&  K,
+                            const float*            depthmap,
+                            const Eigen::Vector2i&  image_size,
+                            const float             voxel_dim,
+                            const float             band,
+                            const int               doubling_ratio,
+                            int                     min_allocation_size) {
   // Create inverse voxel dimension, camera matrix and projection matrix
   const float inv_voxel_dim = 1.f/voxel_dim; // inv_voxel_dim := [m] to [voxel]; voxel_dim := [voxel] to [m]
   Eigen::Matrix4f inv_K = K.inverse();
@@ -164,6 +165,7 @@ size_t buildDenseOctantList(HashType*              allocation_list,
   const int   leaves_level = max_level - se::math::log2_const(OctreeT<FieldType>::blockSide);
   const int   side = se::VoxelBlock<FieldType>::side;
   const int   init_allocation_size = side;
+  min_allocation_size = (min_allocation_size > init_allocation_size) ? min_allocation_size : init_allocation_size;
 
 #ifdef _OPENMP
   std::atomic<unsigned int> voxel_count;
@@ -265,7 +267,7 @@ size_t buildDenseOctantList(HashType*              allocation_list,
 
         // Update allocation variables
         // Double allocation size every time the allocation distance from the surface is bigger than doubling_ratio * allocation_size
-        if ((travelled - inv_voxel_dim*band/2) > doubling_ratio*allocation_size) {
+        if ((travelled - inv_voxel_dim*band/2) > doubling_ratio*allocation_size && allocation_size < min_allocation_size) {
           allocation_size = 2*allocation_size;
 
           // Update current position along the ray where
