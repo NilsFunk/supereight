@@ -267,7 +267,9 @@ size_t buildDenseOctantList(HashType*               allocation_list,
 
         // Update allocation variables
         // Double allocation size every time the allocation distance from the surface is bigger than doubling_ratio * allocation_size
-        if ((travelled - inv_voxel_dim*band/2) > doubling_ratio*allocation_size && allocation_size < min_allocation_size) {
+        if ((travelled - inv_voxel_dim*band/2) > doubling_ratio*allocation_size &&
+            (travelled - inv_voxel_dim*band)   > 0 &&
+            allocation_size < min_allocation_size) {
           allocation_size = 2*allocation_size;
 
           // Update current position along the ray where
