@@ -246,17 +246,17 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
                                       volume_._size,
                                       voxelsize, 2*mu);
     } else if(std::is_same<FieldType, OFusion>::value) {
-     allocated = buildOctantList(allocation_list_.data(), 
-                                 allocation_list_.capacity(),
-                                 *volume_._map_index,
-                                 pose_, 
-                                 K, 
-                                 float_depth_.data(), 
-                                 computation_size_, 
-                                 voxelsize,
-                                 compute_stepsize, 
-                                 step_to_depth, 
-                                 6*mu);
+     allocated = buildParentOctantList(allocation_list_.data(),
+                                       allocation_list_.capacity(),
+                                       *volume_._map_index,
+                                       pose_,
+                                       K,
+                                       float_depth_.data(),
+                                       computation_size_,
+                                       voxelsize,
+                                       6*mu,
+                                       2,
+                                       16*BLOCK_SIDE);
     } else if(std::is_same<FieldType, MultiresSDF>::value) {
      allocated  = buildAllocationList(allocation_list_.data(),
                                       allocation_list_.capacity(),
@@ -270,7 +270,7 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
                                       2*mu);
     }
 
-    volume_._map_index->allocate(allocation_list_.data(), allocated);
+    volume_._map_index->allocateViaParent(allocation_list_.data(), allocated);
 
     std::string version;
     if(std::is_same<FieldType, SDF>::value) {
