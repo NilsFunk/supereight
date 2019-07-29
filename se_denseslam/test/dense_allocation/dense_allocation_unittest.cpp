@@ -324,10 +324,10 @@ TEST_F(DenseAllocation, DenseBFusionAllocationSphere) {
   size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
                  camera_parameter_.imageSize().y();
   allocation_list_.reserve(total);
-
-  size_t allocated = buildDenseOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_,
-                                          camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
-                                          voxel_dim_, band_, doubling_factor_, min_allocation_size_);
+  
+  size_t allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_,
+                                     camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
+                                     voxel_dim_, band_, doubling_factor_, min_allocation_size_);
   oct_.allocate(allocation_list_.data(), allocated);
 
   std::stringstream f_ply;
@@ -338,4 +338,4 @@ TEST_F(DenseAllocation, DenseBFusionAllocationSphere) {
     free(*sphere);
   }
   free(depth_image_);
-}
+};

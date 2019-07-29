@@ -143,17 +143,17 @@ size_t buildOctantList(HashType*              allocationList,
 template <typename FieldType,
     template <typename> class OctreeT,
     typename HashType>
-size_t buildDenseOctantList(HashType*               allocation_list,
-                            size_t                  reserved,
-                            OctreeT<FieldType>&     oct,
-                            const Eigen::Matrix4f&  camera_pose,
-                            const Eigen::Matrix4f&  K,
-                            const float*            depthmap,
-                            const Eigen::Vector2i&  image_size,
-                            const float             voxel_dim,
-                            const float             band,
-                            const int               doubling_ratio,
-                            int                     min_allocation_size) {
+size_t buildOctantList(HashType*               allocation_list,
+                       size_t                  reserved_keys,
+                       OctreeT<FieldType>&     oct,
+                       const Eigen::Matrix4f&  camera_pose,
+                       const Eigen::Matrix4f&  K,
+                       const float*            depthmap,
+                       const Eigen::Vector2i&  image_size,
+                       const float             voxel_dim,
+                       const float             band,
+                       const int               doubling_ratio,
+                       int                     min_allocation_size) {
   // Create inverse voxel dimension, camera matrix and projection matrix
   const float inv_voxel_dim = 1.f/voxel_dim; // inv_voxel_dim := [m] to [voxel]; voxel_dim := [voxel] to [m]
   Eigen::Matrix4f inv_K = K.inverse();
@@ -334,6 +334,6 @@ size_t buildDenseOctantList(HashType*               allocation_list,
       } while (0 < (distance - travelled));
     }
   }
-  return (size_t) voxel_count >= reserved ? reserved : (size_t) voxel_count;
+  return (size_t) voxel_count >= reserved_keys ? reserved_keys : (size_t) voxel_count;
 }
 #endif
