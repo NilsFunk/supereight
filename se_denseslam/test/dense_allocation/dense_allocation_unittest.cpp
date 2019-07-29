@@ -298,6 +298,7 @@ protected:
   float band_;
   generate_depth_image generate_depth_image_;
   std::vector<se::key_t> allocation_list_;
+  std::vector<se::key_t> parent_list_;
   std::vector<se::VoxelBlock<float>*> active_list_;
 };
 
@@ -324,7 +325,7 @@ TEST_F(DenseAllocation, DenseBFusionAllocationSphere) {
   size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
                  camera_parameter_.imageSize().y();
   allocation_list_.reserve(total);
-  
+
   size_t allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_,
                                      camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
                                      voxel_dim_, band_, doubling_factor_, min_allocation_size_);
@@ -336,6 +337,84 @@ TEST_F(DenseAllocation, DenseBFusionAllocationSphere) {
 
   for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
     free(*sphere);
+  }
+  free(depth_image_);
+};
+
+TEST_F(DenseAllocation, DenseBFusionAllocationViaParentSphere) {
+  std::vector<obstacle*> spheres;
+
+  // Allocate single sphere in world frame
+  spheres.push_back(new sphere_obstacle(voxel_dim_*Eigen::Vector3f(size_, size_*1/2, size_*1/2), 0.5f));
+  generate_depth_image_ = generate_depth_image(depth_image_, spheres);
+
+  Eigen::Matrix4f camera_pose = Eigen::Matrix4f::Identity();
+  // Camera orientation
+  Eigen::Matrix3f Rbc;
+  Rbc << 0, 0, 1, -1, 0, 0, 0, -1, 0;
+  Eigen::Matrix3f Rwb = Eigen::Matrix3f::Identity();
+  camera_pose.topLeftCorner<3,3>()  = Rwb*Rbc;
+  // Camera position
+  camera_pose.topRightCorner<3,1>() = Eigen::Vector3f(0, size_/2, size_/2)*voxel_dim_;
+
+  camera_parameter_.setPose(camera_pose);
+  generate_depth_image_(camera_parameter_);
+
+  int num_vox_per_pix = size_;
+  size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
+                 camera_parameter_.imageSize().y();
+  parent_list_.reserve(total);
+
+  size_t allocated = buildParentOctantList(parent_list_.data(), parent_list_.capacity(), oct_,
+                                           camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
+                                           voxel_dim_, band_, doubling_factor_, min_allocation_size_);
+  oct_.allocateViaParent(parent_list_.data(), allocated);
+
+  std::stringstream f_ply;
+  f_ply << "./out/dense-bfusion-allocation-via-parent-sphere-unittest.ply";
+  se::print_octree(f_ply.str().c_str(), oct_);
+
+  for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
+    free(*sphere);
+  }
+  free(depth_image_);
+};
+
+TEST_F(DenseAllocation, DenseBFusionAllocationViaParentBox) {
+  std::vector<obstacle*> boxes;
+
+  // Allocate single sphere in world frame
+  boxes.push_back(new box_obstacle(voxel_dim_*Eigen::Vector3f(size_, size_*1/2, size_*1/2), 0.5, 0.5, 0.5));
+  generate_depth_image_ = generate_depth_image(depth_image_, boxes);
+
+  Eigen::Matrix4f camera_pose = Eigen::Matrix4f::Identity();
+  // Camera orientation
+  Eigen::Matrix3f Rbc;
+  Rbc << 0, 0, 1, -1, 0, 0, 0, -1, 0;
+  Eigen::Matrix3f Rwb = Eigen::Matrix3f::Identity();
+  camera_pose.topLeftCorner<3,3>()  = Rwb*Rbc;
+  // Camera position
+  camera_pose.topRightCorner<3,1>() = Eigen::Vector3f(0, size_/2, size_/2)*voxel_dim_;
+
+  camera_parameter_.setPose(camera_pose);
+  generate_depth_image_(camera_parameter_);
+
+  int num_vox_per_pix = size_;
+  size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
+                 camera_parameter_.imageSize().y();
+  parent_list_.reserve(total);
+
+  size_t allocated = buildParentOctantList(parent_list_.data(), parent_list_.capacity(), oct_,
+                                           camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
+                                           voxel_dim_, band_, doubling_factor_, min_allocation_size_);
+  oct_.allocateViaParent(parent_list_.data(), allocated);
+
+  std::stringstream f_ply;
+  f_ply << "./out/dense-bfusion-allocation-via-parent-box-unittest.ply";
+  se::print_octree(f_ply.str().c_str(), oct_);
+
+  for (std::vector<obstacle*>::iterator box = boxes.begin(); box != boxes.end(); ++box) {
+    free(*box);
   }
   free(depth_image_);
 };

@@ -222,6 +222,13 @@ public:
    */
   bool allocate(key_t *keys, int num_elem);
 
+  /*! \brief allocate a set of voxel blocks via their parent key
+   * \param keys collection of parent keys of the eight children to be allocated (i.e. their
+   * morton number)
+   * \param number of parent keys in the keys array
+   */
+  bool allocateViaParent(key_t *keys, int num_elem);
+
   void save(const std::string& filename);
   void load(const std::string& filename);
 
@@ -267,6 +274,10 @@ private:
   // Parallel allocation of a given tree level for a set of input keys.
   // Pre: levels above target_level must have been already allocated
   bool allocate_level(key_t * keys, int num_tasks, int target_level);
+
+  // Parallel full child allocation of a given tree level for a set of input parent keys.
+  // Pre: levels above target_level must have been already allocated
+  bool allocateLevelViaParent(key_t* keys, int num_tasks, int target_level);
 
   void reserveBuffers(const int n);
 
@@ -838,6 +849,85 @@ bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
         }
       }
       edge /= 2;
+    }
+  }
+  return true;
+}
+
+template <typename T>
+bool Octree<T>::allocateViaParent(key_t *parent_keys, int num_elem){
+
+#if defined(_OPENMP) && !defined(__clang__)
+  __gnu_parallel::sort(keys, keys+num_elem);
+#else
+  std::sort(parent_keys, parent_keys+num_elem);
+#endif
+
+  const int leaves_level = max_level_ - log2(blockSide);
+  reserveBuffers((1<<NUM_DIM)*num_elem);
+
+  int num_parents = 0;
+  bool success = false;
+
+  const unsigned int shift = MAX_BITS - max_level_ - 1;
+  for (int target_parent_level = 0; target_parent_level < leaves_level; target_parent_level++){
+    const key_t mask = MASK[target_parent_level + shift] | SCALE_MASK;
+    compute_prefix(parent_keys, keys_at_level_, num_elem, mask);
+    num_parents = algorithms::unique_multiscale(keys_at_level_, num_elem);
+    success = allocateLevelViaParent(keys_at_level_, num_parents, target_parent_level);
+  }
+  return success;
+}
+
+template <typename T>
+bool Octree<T>::allocateLevelViaParent(key_t* parent_keys, int num_parents, int target_parent_level){
+
+  int leaves_level = max_level_ - log2(blockSide);
+  // Reserve eight child nodes for each parent node
+  nodes_buffer_.reserve((1 << NUM_DIM)*num_parents);
+
+#pragma omp parallel for
+  for (int i = 0; i < num_parents; i++){
+    Node<T> ** n = &root_;
+    key_t parent_key = keyops::code(parent_keys[i]);
+    int parent_level = keyops::level(parent_keys[i]);
+    if(parent_level < target_parent_level) continue;
+
+    int edge = size_/2;
+    for (int level = 0; level < target_parent_level; ++level){
+      int index = child_id(parent_key, level+1, max_level_);
+      n = &(*n)->child(index);
+      edge /= 2;
+    }
+
+    Node<T> * parent = *n;
+    for (uint child_idx = 0; child_idx < 8; child_idx++) {
+      n = &(parent)->child(child_idx);
+      if(!(*n)){
+        int target_child_level = target_parent_level + 1;
+        if(target_child_level == leaves_level){
+          *n = block_buffer_.acquire_block();
+          (*n)->parent() = parent;
+          (*n)->side_ = edge;
+          Eigen::Vector3i curr_parent = unpack_morton(parent_key);
+          Eigen::Vector3i curr_child = curr_parent + edge*Eigen::Vector3i((child_idx & 1) > 0, (child_idx & 2) > 0, (child_idx & 4) > 0);
+          se::key_t child_key = compute_morton(curr_child.x(), curr_child.y(), curr_child.z());
+          static_cast<VoxelBlock<T> *>(*n)->coordinates(curr_child);
+          static_cast<VoxelBlock<T> *>(*n)->active(true);
+          static_cast<VoxelBlock<T> *>(*n)->code_ = child_key | target_child_level;
+          parent->children_mask_ = parent->children_mask_ | (1 << child_idx);
+        }
+        else  {
+          *n = nodes_buffer_.acquire_block();
+          (*n)->parent() = parent;
+          Eigen::Vector3i curr_parent = unpack_morton(parent_key);
+          Eigen::Vector3i curr_child = curr_parent + edge*Eigen::Vector3i((child_idx & 1) > 0, (child_idx & 2) > 0, (child_idx & 4) > 0);
+          se::key_t child_key = compute_morton(curr_child.x(), curr_child.y(), curr_child.z());
+          (*n)->code_ = child_key | target_child_level;
+          (*n)->side_ = edge;
+          parent->children_mask_ = parent->children_mask_ | (1 << child_idx);
+        }
+      }
     }
   }
   return true;
