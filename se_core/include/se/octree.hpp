@@ -277,7 +277,7 @@ private:
 
   // Parallel full child allocation of a given tree level for a set of input parent keys.
   // Pre: levels above target_level must have been already allocated
-  bool allocateLevelViaParent(key_t* keys, int num_tasks, int target_level);
+  bool allocateLevelViaParent(key_t * keys, int num_tasks, int target_level);
 
   void reserveBuffers(const int n);
 
@@ -858,7 +858,7 @@ template <typename T>
 bool Octree<T>::allocateViaParent(key_t *parent_keys, int num_elem){
 
 #if defined(_OPENMP) && !defined(__clang__)
-  __gnu_parallel::sort(keys, keys+num_elem);
+  __gnu_parallel::sort(parent_keys, parent_keys+num_elem);
 #else
   std::sort(parent_keys, parent_keys+num_elem);
 #endif
