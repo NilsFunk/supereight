@@ -280,7 +280,7 @@ private:
   bool allocateLevelViaParent(key_t * keys, int num_tasks, int target_level);
 
   void reserveBuffers(const int n);
-
+  void reserveKeys(const int n);
   // General helpers
 
   int leavesCountRecursive(Node<T> *);
@@ -786,6 +786,14 @@ void Octree<T>::reserveBuffers(const int n){
 }
 
 template <typename T>
+void Octree<T>::reserveKeys(const int n){
+  if(n > reserved_){
+    delete[] keys_at_level_;
+    keys_at_level_ = new key_t[n];
+  }
+}
+
+template <typename T>
 bool Octree<T>::allocate(key_t *keys, int num_elem){
 
 #if defined(_OPENMP) && !defined(__clang__)
@@ -864,7 +872,12 @@ bool Octree<T>::allocateViaParent(key_t *parent_keys, int num_elem){
 #endif
 
   const int leaves_level = max_level_ - log2(blockSide);
-  reserveBuffers((1<<NUM_DIM)*num_elem);
+  const int leaves_parent_level = leaves_level-1;
+
+  reserveKeys(num_elem);
+  int num_leaves_parents = algorithms::filter_level(parent_keys, keys_at_level_, num_elem, leaves_parent_level);
+  reserveBuffers(8*num_leaves_parents);
+  reserveKeys(num_elem);
 
   int num_parents = 0;
   bool success = false;
