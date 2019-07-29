@@ -148,7 +148,7 @@ public:
   };
 
   float intersect(ray& ray) {
-    float dist(SENSOR_LIMIT);
+    float dist(0);
     /*
     Fast Ray-Box Intersection
     by Andrew Woo
@@ -208,7 +208,7 @@ public:
         }
 
       dist = (hit_point - ray.origin()).norm();
-      return dist;
+      return (dist < SENSOR_LIMIT) ? dist : 0;
     }
   };
 
