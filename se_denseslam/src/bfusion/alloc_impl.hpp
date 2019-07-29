@@ -257,7 +257,7 @@ size_t buildOctantList(HashType*               allocation_list,
             HashType key = oct.hash(curr_node.x(), curr_node.y(), curr_node.z(),
                                     std::min(allocation_level, leaves_level));
             unsigned const idx = voxel_count++;
-            if(voxel_count <= reserved) {
+            if(voxel_count <= reserved_keys) {
               allocation_list[idx] = key;
             }
           } else if (allocation_level >= leaves_level) {
