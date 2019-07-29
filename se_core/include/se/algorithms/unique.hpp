@@ -61,6 +61,18 @@ namespace algorithms {
     }
 
   template <typename KeyT>
+  inline int filter_level(const KeyT* in, KeyT* out, int num_keys, const int level) {
+    int e = 0;
+    for (int i = 0; i < num_keys; ++i){
+      if(se::keyops::level(in[i]) == level) {
+        out[e++] = in[i];
+      }
+    }
+    e = unique(out, e);
+    return e;
+  }
+
+  template <typename KeyT>
     inline int unique_multiscale(KeyT* keys, int num_keys) {
       int e = 0;
       for (int i = 0; i < num_keys; ++i){
