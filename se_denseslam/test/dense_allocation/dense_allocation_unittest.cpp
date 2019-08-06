@@ -2,6 +2,8 @@
 #include <se/io/ply_io.hpp>
 #include "../src/bfusion/alloc_impl.hpp"
 #include <gtest/gtest.h>
+#include <chrono>
+#include <ctime>
 
 // Returned distance when ray doesn't intersect sphere
 #define SENSOR_LIMIT 5
@@ -270,8 +272,8 @@ protected:
   virtual void SetUp() {
     size_ = 512;                             // 512 x 512 x 512 voxel^3
     voxel_dim_ = 0.005;                      // 5 mm/voxel
-    doubling_factor_ = 4;                    // Travelled distance to node size ratio before doubling the allocation size
-    min_allocation_size_ = 3*OctreeT::blockSide;
+    doubling_factor_ = 2;                    // Travelled distance to node size ratio before doubling the allocation size
+    max_allocation_size_ = 4*OctreeT::blockSide;
     dim_ = size_ * voxel_dim_;               // [m^3]
     oct_.init(size_, dim_);
     Eigen::Vector2i image_size(640, 480);    // width x height
@@ -293,7 +295,7 @@ protected:
   int size_;
   float voxel_dim_;
   int doubling_factor_;
-  int min_allocation_size_;
+  int max_allocation_size_;
   float dim_;
   float band_;
   generate_depth_image generate_depth_image_;
@@ -328,11 +330,60 @@ TEST_F(DenseAllocation, DenseBFusionAllocationSphere) {
 
   size_t allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_,
                                      camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
-                                     voxel_dim_, band_, doubling_factor_, min_allocation_size_);
+                                     voxel_dim_, band_, doubling_factor_, max_allocation_size_);
   oct_.allocate(allocation_list_.data(), allocated);
 
   std::stringstream f_ply;
   f_ply << "./out/dense-bfusion-allocation-sphere-unittest.ply";
+  se::print_octree(f_ply.str().c_str(), oct_);
+
+  for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
+    free(*sphere);
+  }
+  free(depth_image_);
+};
+
+TEST_F(DenseAllocation, DenseInFrustumBFusionAllocationSphere) {
+  std::vector<obstacle*> spheres;
+
+  // Allocate single sphere in world frame
+  spheres.push_back(new sphere_obstacle(voxel_dim_*Eigen::Vector3f(size_, size_*1/2, size_*1/2), 0.5f));
+  generate_depth_image_ = generate_depth_image(depth_image_, spheres);
+
+  Eigen::Matrix4f camera_pose = Eigen::Matrix4f::Identity();
+  // Camera orientation
+  Eigen::Matrix3f Rbc;
+  Rbc << 0, 0, 1, -1, 0, 0, 0, -1, 0;
+  Eigen::Matrix3f Rwb = Eigen::Matrix3f::Identity();
+  camera_pose.topLeftCorner<3,3>()  = Rwb*Rbc;
+  // Camera position
+  camera_pose.topRightCorner<3,1>() = Eigen::Vector3f(0, size_/2, size_/2)*voxel_dim_;
+
+  camera_parameter_.setPose(camera_pose);
+  generate_depth_image_(camera_parameter_);
+
+  int num_vox_per_pix = size_;
+  size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
+                 camera_parameter_.imageSize().y();
+  allocation_list_.reserve(total);
+
+  auto start = std::chrono::system_clock::now();
+
+  size_t allocated = buildDenseOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_,
+                                          camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
+                                          voxel_dim_, band_, doubling_factor_, max_allocation_size_);
+  auto end = std::chrono::system_clock::now();
+
+  std::chrono::duration<double> elapsed_seconds = end-start;
+  std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+
+  std::cout << "finished computation at " << std::ctime(&end_time)
+            << "elapsed time: " << elapsed_seconds.count() << "s\n";
+
+  oct_.allocate(allocation_list_.data(), allocated);
+
+  std::stringstream f_ply;
+  f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/dense-in-frustum-bfusion-allocation-sphere-unittest.ply";
   se::print_octree(f_ply.str().c_str(), oct_);
 
   for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
@@ -367,7 +418,7 @@ TEST_F(DenseAllocation, DenseBFusionAllocationViaParentSphere) {
 
   size_t allocated = buildParentOctantList(parent_list_.data(), parent_list_.capacity(), oct_,
                                            camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
-                                           voxel_dim_, band_, doubling_factor_, min_allocation_size_);
+                                           voxel_dim_, band_, doubling_factor_, max_allocation_size_);
   oct_.allocateViaParent(parent_list_.data(), allocated);
 
   std::stringstream f_ply;
@@ -406,7 +457,7 @@ TEST_F(DenseAllocation, DenseBFusionAllocationViaParentBox) {
 
   size_t allocated = buildParentOctantList(parent_list_.data(), parent_list_.capacity(), oct_,
                                            camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
-                                           voxel_dim_, band_, doubling_factor_, min_allocation_size_);
+                                           voxel_dim_, band_, doubling_factor_, max_allocation_size_);
   oct_.allocateViaParent(parent_list_.data(), allocated);
 
   std::stringstream f_ply;

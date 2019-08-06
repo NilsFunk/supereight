@@ -534,4 +534,255 @@ size_t buildParentOctantList(HashType*               parent_list,
   }
   return (size_t) parent_count >= reserved_keys ? reserved_keys : (size_t) parent_count;
 }
+
+bool reprojectIntoImage(const Eigen::Matrix4f&  Twc,
+                        const Eigen::Matrix4f&  K,
+                        const Eigen::Vector2i&  image_size,
+                        const Eigen::Vector3i&  world_node,
+                        const float&            voxel_dim,
+                        const int&              node_size) {
+
+  bool is_inside = true;
+  const Eigen::Vector3f tcw = -Twc.topRightCorner<3,1>();
+  const Eigen::Matrix3f Rcw = (Twc.topLeftCorner<3,3>()).inverse();
+
+  const Eigen::Vector3f delta_m_c = Rcw * Eigen::Vector3f::Constant(voxel_dim * node_size);
+  const Eigen::Vector3f delta_p = K.topLeftCorner<3,3>() * delta_m_c;
+  Eigen::Vector3f base_m_c = Rcw * (voxel_dim * world_node.cast<float>() + tcw);
+  Eigen::Vector3f base_p = K.topLeftCorner<3,3>() * base_m_c;
+
+#pragma omp simd
+  for (int i = 0; i < 8; ++i) {
+    const Eigen::Vector3i dir = Eigen::Vector3i((i & 1) > 0, (i & 2) > 0, (i & 4) > 0);
+    const Eigen::Vector3f corner_m_c = base_m_c + dir.cast<float>().cwiseProduct(delta_m_c);
+    const Eigen::Vector3f corner_homo = base_p + dir.cast<float>().cwiseProduct(delta_p);
+
+    if (corner_m_c(2) < 0.0001f) continue;
+    const float inverse_depth = 1.f / corner_homo(2);
+    const Eigen::Vector2f corner_p = Eigen::Vector2f(
+        corner_homo(0) * inverse_depth + 0.5f,
+        corner_homo(1) * inverse_depth + 0.5f);
+    if (corner_p(0) < 0.5f || corner_p(0) > image_size.x() - 1.5f ||
+        corner_p(1) < 0.5f || corner_p(1) > image_size.y() - 1.5f) is_inside = false;
+  }
+
+  return is_inside;
+}
+
+template <typename FieldType,
+    template <typename> class OctreeT,
+    typename HashType>
+size_t buildDenseOctantList(HashType*               allocation_list,
+                            size_t                  reserved_keys,
+                            OctreeT<FieldType>&     oct,
+                            const Eigen::Matrix4f&  camera_pose,
+                            const Eigen::Matrix4f&  K,
+                            const float*            depthmap,
+                            const Eigen::Vector2i&  image_size,
+                            const float             voxel_dim,
+                            const float             band,
+                            const int               doubling_ratio,
+                            int                     max_allocation_size) {
+  // Create inverse voxel dimension, camera matrix and projection matrix
+  const float inv_voxel_dim = 1.f/voxel_dim; // inv_voxel_dim := [m] to [voxel]; voxel_dim := [voxel] to [m]
+  Eigen::Matrix4f inv_K = K.inverse();
+  const Eigen::Matrix4f inv_P = camera_pose * inv_K;
+  const Eigen::Matrix4f Twc= camera_pose;
+
+  // Read map parameter
+  const int   size = oct.size();
+  const int   max_level = log2(size);
+  const int   leaves_level = max_level - se::math::log2_const(OctreeT<FieldType>::blockSide);
+  const int   side = se::VoxelBlock<FieldType>::side;
+  const int   min_allocation_size = side;
+  max_allocation_size = (max_allocation_size > min_allocation_size) ? max_allocation_size : min_allocation_size;
+
+#ifdef _OPENMP
+  std::atomic<unsigned int> voxel_count;
+#else
+  unsigned int voxel_count;
+#endif
+  // Camera position [m] in world frame
+  const Eigen::Vector3f camera_position = camera_pose.topRightCorner<3, 1>();
+  voxel_count = 0;
+#pragma omp parallel for
+  for (int y = 0; y < image_size.y(); y += 2) {
+    for (int x = 0; x < image_size.x(); x += 2) {
+      if(depthmap[x + y*image_size.x()] == 0)
+        continue;
+      const float depth = depthmap[x + y*image_size.x()];
+      Eigen::Vector3f world_vertex = (inv_P * Eigen::Vector3f((x + 0.5f) * depth,
+                                                              (y + 0.5f) * depth,
+                                                              depth).homogeneous()).head<3>(); //  [m] in world frame
+
+      // Vertex to camera direction in [-] (no unit) in world frame
+      Eigen::Vector3f direction = (camera_position - world_vertex).normalized();
+
+      // Position behind the surface in [m] in world frame
+      const Eigen::Vector3f allocation_origin = world_vertex - (band * 0.5f) * direction;
+
+      // Voxel/node traversal origin to camera distance in [voxel]
+      const float distance = inv_voxel_dim*(camera_position - allocation_origin).norm();
+
+      // Initialise side length in [voxel] of allocated node
+      int curr_allocation_size = min_allocation_size;
+      int curr_allocation_level = max_level - log2(curr_allocation_size);
+      int curr_max_allocation_size = min_allocation_size;
+      int last_allocation_size = curr_allocation_size;
+
+      Eigen::Vector3f curr_pos_v = inv_voxel_dim * allocation_origin;
+      Eigen::Vector3i curr_node = curr_allocation_size*(((curr_pos_v).array().floor())/curr_allocation_size).cast<int>();
+      Eigen::Vector3i last_node;
+
+      // Init last_move. Could be done with x, y, or z.
+      // 1st value equals dimension (x, y or z), 2nd value corresponds to updated coordinate.
+      std::pair<int, int> last_move = std::make_pair(0,curr_node.x());
+
+      // Fraction of the current position in [voxel] in the current node along the x-, y- and z-axis
+      Eigen::Vector3f frac;
+      //Current state of T in [voxel]
+      Eigen::Vector3f T_max;
+      // Increment/Decrement of voxel value along the ray (-1 or +1)
+      Eigen::Vector3i step_base;
+      // Travelled distance needed in [voxel] to pass a voxel in x, y and z direction
+      Eigen::Vector3f delta_T;
+
+      // Initalize T
+      if(direction.x() < 0) {
+        step_base.x()  = -1;
+      }
+      else {
+        step_base.x() = 1;
+      }
+      if(direction.y() < 0) {
+        step_base.y()  = -1;
+      }
+      else {
+        step_base.y() = 1;
+      }
+      if(direction.z() < 0) {
+        step_base.z()  = -1;
+      }
+      else {
+        step_base.z() = 1;
+      }
+
+      // Distance travelled in [voxel]
+      float travelled = 0;
+
+      int count = 0;
+      do {
+        if ((curr_node.x() < size)
+            && (curr_node.y() < size)
+            && (curr_node.z() < size)
+            && (curr_node.x() >= 0)
+            && (curr_node.y() >= 0)
+            && (curr_node.z() >= 0)) {
+          last_node = curr_node;
+          bool is_halfend = false;
+          while (true) {
+            count++;
+            curr_node = curr_allocation_size*(((last_node).array().floor())/curr_allocation_size).cast<int>();
+            if (curr_allocation_size > min_allocation_size) {
+              if (!reprojectIntoImage(Twc, K, image_size, curr_node, voxel_dim, curr_allocation_size)) {
+                curr_allocation_size /= 2;
+                curr_allocation_level += 1;
+                is_halfend = true;
+                continue;
+              }
+            } else if (!reprojectIntoImage(Twc, K, image_size, curr_node,voxel_dim, curr_allocation_size)) break;
+            if (2 * curr_allocation_size > curr_max_allocation_size || is_halfend) break;
+
+            int tmp_size = 2 * curr_allocation_size;
+            Eigen::Vector3i tmp_node = tmp_size*(((last_node).array().floor())/tmp_size).cast<int>();
+            if (!reprojectIntoImage(Twc, K, image_size, tmp_node, voxel_dim, tmp_size)) break;
+            curr_allocation_size = tmp_size;
+            curr_allocation_level -= 1;
+            curr_node = tmp_node;
+          }
+
+          auto node_ptr = oct.fetch_octant(curr_node.x(), curr_node.y(), curr_node.z(),
+                                           curr_allocation_level);
+          if (!node_ptr) {
+            HashType key = oct.hash(curr_node.x(), curr_node.y(), curr_node.z(),
+                                    std::min(curr_allocation_level, leaves_level));
+            unsigned const idx = voxel_count++;
+            if(voxel_count <= reserved_keys) {
+              allocation_list[idx] = key;
+            }
+          } else if (curr_allocation_level >= leaves_level) {
+            static_cast<se::VoxelBlock<FieldType>*>(node_ptr)->active(true);
+          }
+        }
+        if ((travelled - inv_voxel_dim * band / 2) > doubling_ratio * curr_max_allocation_size &&
+            (travelled - inv_voxel_dim * band)   > 0 &&
+            curr_allocation_size < max_allocation_size) curr_max_allocation_size *= 2;
+
+        // Update current position along the ray where
+        // allocation_origin in [m] and travelled*direction in [voxel]
+        curr_pos_v = inv_voxel_dim * allocation_origin + travelled * direction;
+
+        // Compute fraction of the current position in [voxel] in the updated current node along the x-, y- and z-axis
+        frac = (curr_pos_v - curr_node.cast<float>())/curr_allocation_size;
+
+        // Re-initalize delta_T, T_max and step size according to new curr_allocation_size
+        delta_T = curr_allocation_size / direction.array().abs();
+
+        if(direction.x() < 0) {
+          T_max.x() = travelled + frac.x() * delta_T.x();
+        }
+        else {
+          T_max.x() = travelled + (1 - frac.x()) * delta_T.x();
+        }
+        if(direction.y() < 0) {
+          T_max.y() = travelled + frac.y() * delta_T.y();
+        }
+        else {
+          T_max.y() = travelled + (1 - frac.y()) * delta_T.y();
+        }
+        if(direction.z() < 0) {
+          T_max.z() = travelled + frac.z() * delta_T.z();
+        }
+        else {
+          T_max.z() = travelled + (1 - frac.z()) * delta_T.z();
+        }
+
+        if (T_max.x() < T_max.y()) {
+          if (T_max.x() < T_max.z()) {
+            travelled = T_max.x();
+            curr_node = (inv_voxel_dim * allocation_origin + travelled * direction).cast<int>();
+            curr_node.x() += step_base.x();
+            if(step_base(last_move.first) * curr_node(last_move.first) < step_base(last_move.first) * last_move.second)
+              curr_node(last_move.first) = last_move.second;
+            last_move = std::make_pair(0,curr_node.x());
+          } else {
+            travelled = T_max.z();
+            curr_node = (inv_voxel_dim * allocation_origin + travelled * direction).cast<int>();
+            curr_node.z() += step_base.z();
+            if(step_base(last_move.first) * curr_node(last_move.first) < step_base(last_move.first) * last_move.second)
+              curr_node(last_move.first) = last_move.second;
+            last_move = std::make_pair(2,curr_node.z());
+          }
+        } else {
+          if (T_max.y() < T_max.z()) {
+            travelled = T_max.y();
+            curr_node = (inv_voxel_dim * allocation_origin + travelled * direction).cast<int>();
+            curr_node.y() += step_base.y();
+            if(step_base(last_move.first) * curr_node(last_move.first) < step_base(last_move.first) * last_move.second)
+              curr_node(last_move.first) = last_move.second;
+            last_move = std::make_pair(1,curr_node.y());
+          } else {
+            travelled = T_max.z();
+            curr_node = (inv_voxel_dim * allocation_origin + travelled * direction).cast<int>();
+            curr_node.z() += step_base.z();
+            if(step_base(last_move.first) * curr_node(last_move.first) < step_base(last_move.first) * last_move.second)
+              curr_node(last_move.first) = last_move.second;
+            last_move = std::make_pair(2,curr_node.z());
+          }
+        }
+      } while (0.1 < (distance - travelled));
+    }
+  }
+  return (size_t) voxel_count >= reserved_keys ? reserved_keys : (size_t) voxel_count;
+}
 #endif
