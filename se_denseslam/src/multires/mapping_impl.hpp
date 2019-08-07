@@ -128,9 +128,9 @@ void propagate_up(se::VoxelBlock<T>* block, const int scale) {
 template <typename T>
 void propagate_up(se::Node<T>* node, const int max_depth, 
                   const unsigned timestamp) {
+  node->timestamp(timestamp);
 
   if(!node->parent()) {
-    node->timestamp(timestamp);
     return;
   }
 
@@ -157,7 +157,6 @@ void propagate_up(se::Node<T>* node, const int max_depth,
     data.y = ceil(weight);
     data.delta_y = 0;
   }
-  node->timestamp(timestamp);
 }
 
 template <typename FieldSelector>
@@ -493,7 +492,14 @@ template <>void integrate(se::Octree<MultiresSDF>& map, const Sophus::SE3f& Tcw,
       se::functor::internal::parallel_for_each(active_list, funct);
 
       for(const auto& b : active_list) {
-        if(b->parent()) prop_list.push_back(b->parent());
+        if(b->parent()) {
+          prop_list.push_back(b->parent());
+          const unsigned int id = se::child_id(b->code_,
+                                               se::keyops::code(b->code_), map.max_depth);
+          auto data = b->data(b->coordinates(), se::math::log2_const(se::VoxelBlock<MultiresSDF>::side));
+          auto& parent_data = b->parent()->value_[id];
+          parent_data = data;
+        }
       }
 
       while(!prop_list.empty()) {
