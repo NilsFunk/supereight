@@ -246,10 +246,10 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
                                       volume_._size,
                                       voxelsize, 2*mu);
     } else if(std::is_same<FieldType, OFusion>::value) {
-      allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(),
-                                  *volume_._map_index,
-                                  pose_, getCameraMatrix(k), float_depth_.data(), computation_size_, voxelsize,
-                                  compute_stepsize, step_to_depth, 6*mu);
+//      allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(),
+//                                  *volume_._map_index,
+//                                  pose_, getCameraMatrix(k), float_depth_.data(), computation_size_, voxelsize,
+//                                  compute_stepsize, step_to_depth, 6*mu);
 //     allocated = buildParentOctantList(allocation_list_.data(),
 //                                       allocation_list_.capacity(),
 //                                       *volume_._map_index,
@@ -261,17 +261,17 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
 //                                       6*mu,
 //                                       2,
 //                                       16*BLOCK_SIDE);
-//     allocated = buildDenseOctantList(allocation_list_.data(),
-//                                      allocation_list_.capacity(),
-//                                      *volume_._map_index,
-//                                      pose_,
-//                                      K,
-//                                      float_depth_.data(),
-//                                      computation_size_,
-//                                      voxelsize,
-//                                      6*mu,
-//                                      2,
-//                                      64*BLOCK_SIDE);
+     allocated = buildDenseOctantList(allocation_list_.data(),
+                                      allocation_list_.capacity(),
+                                      *volume_._map_index,
+                                      pose_,
+                                      K,
+                                      float_depth_.data(),
+                                      computation_size_,
+                                      voxelsize,
+                                      6*mu,
+                                      2,
+                                      64*BLOCK_SIDE);
     } else if(std::is_same<FieldType, MultiresSDF>::value) {
      allocated  = buildAllocationList(allocation_list_.data(),
                                       allocation_list_.capacity(),
@@ -316,6 +316,12 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
       se::multires::integrate(*volume_._map_index, Tcw, K, voxelsize,
           volume_._map_index->_offset, float_depth_, mu, maxweight);
       version = "multires";
+    }
+
+    if (frame == 200) {
+      std::stringstream f_ply;
+      f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/living-room-200.ply";
+      se::print_octree(f_ply.str().c_str(), *volume_._map_index);
     }
 
     // if(frame > 160 && frame < 200) {

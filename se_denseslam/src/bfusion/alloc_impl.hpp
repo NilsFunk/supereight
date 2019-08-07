@@ -32,6 +32,7 @@
 #ifndef BFUSION_ALLOC_H
 #define BFUSION_ALLOC_H
 #include <se/utils/math_utils.h>
+#include <se/image/image.hpp>
 
 /* Compute step size based on distance travelled along the ray */
 static inline float compute_stepsize(const float dist_travelled,
@@ -535,9 +536,48 @@ size_t buildParentOctantList(HashType*               parent_list,
   return (size_t) parent_count >= reserved_keys ? reserved_keys : (size_t) parent_count;
 }
 
+std::pair<int, int> bounds(float val[8]) {
+  int min = val[0];
+  int max = val[0];
+  for (int i = 1; i < 8; i++) {
+    if (min > val[i]) {
+      min = val[i];
+      continue;
+    } else if (max < val[i])
+      max = val[i];
+  }
+  return std::make_pair(min, max);
+}
+
+se::Image<int> depth_mask(const float* depthmap, Eigen::Vector2i image_size, int downsample) {
+  se::Image<int> mask = se::Image<int>(image_size.x() / downsample,
+                                       image_size.y() / downsample);
+#pragma omp parallel for shared(mask)
+  for (int y = 0; y < mask.height(); y++) {
+    for (int x = 0; x < mask.width(); x++) {
+      Eigen::Vector2i pixel = Eigen::Vector2i(x, y);
+      const Eigen::Vector2i corner_pixel = downsample * pixel;
+      bool data_complete = true;
+      for (int i = 0; i < downsample; ++i) {
+        for (int j = 0; j < downsample; ++j) {
+          Eigen::Vector2i curr = corner_pixel + Eigen::Vector2i(j, i);
+          float curr_value = depthmap[curr.x() + curr.y() * image_size.x()];
+          if (curr_value == 0) {
+            data_complete = false;
+          }
+        }
+      }
+      mask[x + y * mask.width()] = data_complete;
+    }
+  }
+  return mask;
+}
+
 bool reprojectIntoImage(const Eigen::Matrix4f&  Twc,
                         const Eigen::Matrix4f&  K,
                         const Eigen::Vector2i&  image_size,
+                        const se::Image<int>&   mask,
+                        const int               downsample,
                         const Eigen::Vector3i&  world_node,
                         const float&            voxel_dim,
                         const int&              node_size) {
@@ -551,22 +591,47 @@ bool reprojectIntoImage(const Eigen::Matrix4f&  Twc,
   Eigen::Vector3f base_m_c = Rcw * (voxel_dim * world_node.cast<float>() + tcw);
   Eigen::Vector3f base_p = K.topLeftCorner<3,3>() * base_m_c;
 
+  float corners_p_x[8];
+  float corners_p_y[8];
+
 #pragma omp simd
   for (int i = 0; i < 8; ++i) {
     const Eigen::Vector3i dir = Eigen::Vector3i((i & 1) > 0, (i & 2) > 0, (i & 4) > 0);
     const Eigen::Vector3f corner_m_c = base_m_c + dir.cast<float>().cwiseProduct(delta_m_c);
     const Eigen::Vector3f corner_homo = base_p + dir.cast<float>().cwiseProduct(delta_p);
 
-    if (corner_m_c(2) < 0.0001f) continue;
+    if (corner_m_c(2) < 0.0001f) {
+      is_inside = false;
+      continue;
+    }
     const float inverse_depth = 1.f / corner_homo(2);
     const Eigen::Vector2f corner_p = Eigen::Vector2f(
         corner_homo(0) * inverse_depth + 0.5f,
         corner_homo(1) * inverse_depth + 0.5f);
+    corners_p_x[i] = corner_p.x();
+    corners_p_y[i] = corner_p.y();
     if (corner_p(0) < 0.5f || corner_p(0) > image_size.x() - 1.5f ||
-        corner_p(1) < 0.5f || corner_p(1) > image_size.y() - 1.5f) is_inside = false;
+        corner_p(1) < 0.5f || corner_p(1) > image_size.y() - 1.5f) {
+      is_inside = false;
+    }
   }
 
-  return is_inside;
+  std::pair<int, int> x_bounds = bounds(corners_p_x);
+  std::pair<int, int> y_bounds = bounds(corners_p_y);
+
+  bool node_valid = is_inside;
+  if (is_inside && node_size > 8) {
+#pragma omp simd
+    for (int y = y_bounds.first / downsample; y <= y_bounds.second / downsample; y ++) {
+      for (int x = x_bounds.first / downsample; x <= x_bounds.second / downsample; x++) {
+        if (mask.data()[x + y * mask.width()] == 0) {
+          node_valid = false;
+        }
+      }
+    }
+  }
+
+  return node_valid;
 }
 
 template <typename FieldType,
@@ -589,6 +654,9 @@ size_t buildDenseOctantList(HashType*               allocation_list,
   const Eigen::Matrix4f inv_P = camera_pose * inv_K;
   const Eigen::Matrix4f Twc= camera_pose;
 
+  int downsample = 4;
+  se::Image<int> mask = depth_mask(depthmap, image_size, downsample);
+
   // Read map parameter
   const int   size = oct.size();
   const int   max_level = log2(size);
@@ -607,7 +675,7 @@ size_t buildDenseOctantList(HashType*               allocation_list,
   voxel_count = 0;
 #pragma omp parallel for
   for (int y = 0; y < image_size.y(); y += 2) {
-    for (int x = 0; x < image_size.x(); x += 2) {
+    for (int x = 0; x < image_size.x(); x+= 2) {
       if(depthmap[x + y*image_size.x()] == 0)
         continue;
       const float depth = depthmap[x + y*image_size.x()];
@@ -684,18 +752,18 @@ size_t buildDenseOctantList(HashType*               allocation_list,
             count++;
             curr_node = curr_allocation_size*(((last_node).array().floor())/curr_allocation_size).cast<int>();
             if (curr_allocation_size > min_allocation_size) {
-              if (!reprojectIntoImage(Twc, K, image_size, curr_node, voxel_dim, curr_allocation_size)) {
+              if (!reprojectIntoImage(Twc, K, image_size, mask, downsample, curr_node, voxel_dim, curr_allocation_size)) {
                 curr_allocation_size /= 2;
                 curr_allocation_level += 1;
                 is_halfend = true;
                 continue;
               }
-            } else if (!reprojectIntoImage(Twc, K, image_size, curr_node,voxel_dim, curr_allocation_size)) break;
+            } else if (!reprojectIntoImage(Twc, K, image_size, mask, downsample, curr_node,voxel_dim, curr_allocation_size)) break;
             if (2 * curr_allocation_size > curr_max_allocation_size || is_halfend) break;
 
             int tmp_size = 2 * curr_allocation_size;
             Eigen::Vector3i tmp_node = tmp_size*(((last_node).array().floor())/tmp_size).cast<int>();
-            if (!reprojectIntoImage(Twc, K, image_size, tmp_node, voxel_dim, tmp_size)) break;
+            if (!reprojectIntoImage(Twc, K, image_size, mask, downsample, tmp_node, voxel_dim, tmp_size)) break;
             curr_allocation_size = tmp_size;
             curr_allocation_level -= 1;
             curr_node = tmp_node;
