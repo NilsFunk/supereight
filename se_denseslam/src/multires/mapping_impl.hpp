@@ -147,7 +147,8 @@ void propagate_up(se::Node<T>* node, const int max_depth,
   }
 
   const unsigned int id = se::child_id(node->code_, 
-      se::keyops::code(node->code_), max_depth);
+      se::keyops::level(node->code_), max_depth);
+
   if(num_samples > 0) {
     auto& data = node->parent()->value_[id];
     mean /= num_samples;
