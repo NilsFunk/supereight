@@ -6,7 +6,7 @@
 #include <se/functors/for_each.hpp>
 #include <se/io/vtk-io.h>
 #include <se/io/ply_io.hpp>
-#include "../../src/multires/mapping_impl.hpp"
+#include "../../src/multires_kfusion/mapping_impl.hpp"
 #include <random>
 #include <functional>
 #include <gtest/gtest.h>

@@ -1,6 +1,6 @@
 #include <se/octree.hpp>
 #include <gtest/gtest.h>
-#include "../src/multires/mapping_impl.hpp"
+#include "../src/multires_kfusion/mapping_impl.hpp"
 
 typedef struct testT {
   float x;

@@ -51,9 +51,9 @@
 #include "kfusion/mapping_impl.hpp"
 #include "bfusion/alloc_impl.hpp"
 #include "kfusion/alloc_impl.hpp"
-#include "multires/alloc_impl.hpp"
-#include "multires/mapping_impl.hpp"
-#include "multires/rendering_impl.hpp"
+#include "multires_kfusion/alloc_impl.hpp"
+#include "multires_kfusion/mapping_impl.hpp"
+#include "multires_kfusion/rendering_impl.hpp"
 
 
 extern PerfStats Stats;
