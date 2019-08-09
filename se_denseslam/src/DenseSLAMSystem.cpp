@@ -233,13 +233,13 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
     size_t total = num_vox_per_pix * computation_size_.x() *
       computation_size_.y();
     allocation_list_.reserve(total);
-    frustum_list_.reserve(total);
+    free_space_list_.reserve(total);
 
     const Sophus::SE3f&    Tcw = Sophus::SE3f(pose_).inverse();
     const Eigen::Matrix4f& K   = getCameraMatrix(k);
     const Eigen::Vector2i  framesize(computation_size_.x(), computation_size_.y());
     size_t allocated = 0;
-    size_t frustum_allocated = 0;
+    size_t free_space_allocated = 0;
     if(std::is_same<FieldType, SDF>::value) {
      allocated  = buildAllocationList(allocation_list_.data(),
                                       allocation_list_.capacity(),
@@ -267,9 +267,9 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
                                        2*mu);
     } else if(std::is_same<FieldType, MultiresOFusion>::value) {
       buildDenseOctantList(allocation_list_.data(),
-                           frustum_list_.data(),
+                           free_space_list_.data(),
                            allocated,
-                           frustum_allocated,
+                           free_space_allocated,
                            allocation_list_.capacity(),
                            *volume_._map_index,
                            pose_,

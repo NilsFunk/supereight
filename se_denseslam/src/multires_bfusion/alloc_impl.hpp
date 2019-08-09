@@ -531,9 +531,9 @@ template <typename FieldType,
     template <typename> class OctreeT,
     typename HashType>
 void buildDenseOctantList(HashType*               allocation_list,
-                          HashType*               frustum_list,
+                          HashType*               free_space_list,
                           size_t&                 allocation_length,
-                          size_t&                 frustum_length,
+                          size_t&                 free_space_length,
                           size_t                  reserved_keys,
                           OctreeT<FieldType>&     oct,
                           const Eigen::Matrix4f&  camera_pose,
@@ -563,16 +563,16 @@ void buildDenseOctantList(HashType*               allocation_list,
 
 #ifdef _OPENMP
   std::atomic<unsigned int> allocation_count;
-  std::atomic<unsigned int> frustum_count;
+  std::atomic<unsigned int> free_space_count;
 #else
   unsigned int allocation_count;
-  unsigned int frustum_count;
+  unsigned int free_space_count;
 #endif
 
   // Camera position [m] in world frame
   const Eigen::Vector3f camera_position = camera_pose.topRightCorner<3, 1>();
   allocation_count = 0;
-  frustum_count = 0;
+  free_space_count = 0;
 #pragma omp parallel for
   for (int y = 0; y < image_size.y(); y += 2) {
     for (int x = 0; x < image_size.x(); x+= 2) {
@@ -675,9 +675,9 @@ void buildDenseOctantList(HashType*               allocation_list,
             HashType key = oct.hash(curr_node.x(), curr_node.y(), curr_node.z(),
                                     std::min(curr_allocation_level, leaves_level));
             if (travelled > 2 * doubling_ratio * min_allocation_size) {
-              if(frustum_count <= reserved_keys) {
-                unsigned const idx = frustum_count++;
-                frustum_list[idx] = key;
+              if(free_space_count <= reserved_keys) {
+                unsigned const idx = free_space_count++;
+                free_space_list[idx] = key;
               }
             }
             else if(allocation_count <= reserved_keys) {
@@ -758,6 +758,6 @@ void buildDenseOctantList(HashType*               allocation_list,
     }
   }
   allocation_length = (size_t) allocation_count >= reserved_keys ? reserved_keys : (size_t) allocation_count;
-  frustum_length = (size_t) frustum_count >= reserved_keys ? reserved_keys : (size_t) frustum_count;
+  free_space_length = (size_t) free_space_count >= reserved_keys ? reserved_keys : (size_t) free_space_count;
 }
 #endif // MULTIRES_BFUSION_ALLOC_H
