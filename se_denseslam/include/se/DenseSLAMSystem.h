@@ -77,6 +77,7 @@ class DenseSLAMSystem {
     se::Image<Eigen::Vector3f> normal_;
 
     std::vector<se::key_t> allocation_list_;
+    std::vector<se::key_t> frustum_list_;
     std::shared_ptr<se::Octree<FieldType> > discrete_vol_ptr_;
     Volume<FieldType> volume_;
 

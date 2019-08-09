@@ -232,11 +232,13 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
     size_t total = num_vox_per_pix * computation_size_.x() *
       computation_size_.y();
     allocation_list_.reserve(total);
+    frustum_list_.reserve(total);
 
     const Sophus::SE3f&    Tcw = Sophus::SE3f(pose_).inverse();
     const Eigen::Matrix4f& K   = getCameraMatrix(k);
     const Eigen::Vector2i  framesize(computation_size_.x(), computation_size_.y());
-    unsigned int allocated = 0;
+    size_t allocated = 0;
+    size_t frustum_allocated = 0;
     if(std::is_same<FieldType, SDF>::value) {
      allocated  = buildAllocationList(allocation_list_.data(),
                                       allocation_list_.capacity(),
@@ -262,17 +264,20 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
 //                                       6*mu,
 //                                       2,
 //                                       16*BLOCK_SIDE);
-     allocated = buildDenseOctantList(allocation_list_.data(),
-                                      allocation_list_.capacity(),
-                                      *volume_._map_index,
-                                      pose_,
-                                      K,
-                                      float_depth_.data(),
-                                      computation_size_,
-                                      voxelsize,
-                                      6*mu,
-                                      2,
-                                      64*BLOCK_SIDE);
+     buildDenseOctantList(allocation_list_.data(),
+                          frustum_list_.data(),
+                          allocated,
+                          frustum_allocated,
+                          allocation_list_.capacity(),
+                          *volume_._map_index,
+                          pose_,
+                          K,
+                          float_depth_.data(),
+                          computation_size_,
+                          voxelsize,
+                          6*mu,
+                          2,
+                          64*BLOCK_SIDE);
     } else if(std::is_same<FieldType, MultiresSDF>::value) {
      allocated  = buildAllocationList(allocation_list_.data(),
                                       allocation_list_.capacity(),

@@ -530,17 +530,20 @@ bool reprojectIntoImage(const Eigen::Matrix4f&  Twc,
 template <typename FieldType,
     template <typename> class OctreeT,
     typename HashType>
-size_t buildDenseOctantList(HashType*               allocation_list,
-                            size_t                  reserved_keys,
-                            OctreeT<FieldType>&     oct,
-                            const Eigen::Matrix4f&  camera_pose,
-                            const Eigen::Matrix4f&  K,
-                            const float*            depthmap,
-                            const Eigen::Vector2i&  image_size,
-                            const float             voxel_dim,
-                            const float             band,
-                            const int               doubling_ratio,
-                            int                     max_allocation_size) {
+void buildDenseOctantList(HashType*               allocation_list,
+                          HashType*               frustum_list,
+                          size_t&                 allocation_length,
+                          size_t&                 frustum_length,
+                          size_t                  reserved_keys,
+                          OctreeT<FieldType>&     oct,
+                          const Eigen::Matrix4f&  camera_pose,
+                          const Eigen::Matrix4f&  K,
+                          const float*            depthmap,
+                          const Eigen::Vector2i&  image_size,
+                          const float             voxel_dim,
+                          const float             band,
+                          const int               doubling_ratio,
+                          int                     max_allocation_size) {
   // Create inverse voxel dimension, camera matrix and projection matrix
   const float inv_voxel_dim = 1.f/voxel_dim; // inv_voxel_dim := [m] to [voxel]; voxel_dim := [voxel] to [m]
   Eigen::Matrix4f inv_K = K.inverse();
@@ -559,13 +562,17 @@ size_t buildDenseOctantList(HashType*               allocation_list,
   max_allocation_size = (max_allocation_size > min_allocation_size) ? max_allocation_size : min_allocation_size;
 
 #ifdef _OPENMP
-  std::atomic<unsigned int> voxel_count;
+  std::atomic<unsigned int> allocation_count;
+  std::atomic<unsigned int> frustum_count;
 #else
-  unsigned int voxel_count;
+  unsigned int allocation_count;
+  unsigned int frustum_count;
 #endif
+
   // Camera position [m] in world frame
   const Eigen::Vector3f camera_position = camera_pose.topRightCorner<3, 1>();
-  voxel_count = 0;
+  allocation_count = 0;
+  frustum_count = 0;
 #pragma omp parallel for
   for (int y = 0; y < image_size.y(); y += 2) {
     for (int x = 0; x < image_size.x(); x+= 2) {
@@ -667,12 +674,18 @@ size_t buildDenseOctantList(HashType*               allocation_list,
           if (!node_ptr) {
             HashType key = oct.hash(curr_node.x(), curr_node.y(), curr_node.z(),
                                     std::min(curr_allocation_level, leaves_level));
-            unsigned const idx = voxel_count++;
-            if(voxel_count <= reserved_keys) {
+            if (travelled > 2 * doubling_ratio * min_allocation_size) {
+              if(frustum_count <= reserved_keys) {
+                unsigned const idx = frustum_count++;
+                frustum_list[idx] = key;
+              }
+            }
+            else if(allocation_count <= reserved_keys) {
+              unsigned const idx = allocation_count++;
               allocation_list[idx] = key;
             }
-          } else if (curr_allocation_level >= leaves_level) {
-            static_cast<se::VoxelBlock<FieldType>*>(node_ptr)->active(true);
+          } else {
+            (node_ptr)->active(true);
           }
         }
         if ((travelled - inv_voxel_dim * band / 2) > doubling_ratio * curr_max_allocation_size &&
@@ -744,6 +757,7 @@ size_t buildDenseOctantList(HashType*               allocation_list,
       } while (0.1 < (distance - travelled));
     }
   }
-  return (size_t) voxel_count >= reserved_keys ? reserved_keys : (size_t) voxel_count;
+  allocation_length = (size_t) allocation_count >= reserved_keys ? reserved_keys : (size_t) allocation_count;
+  frustum_length = (size_t) frustum_count >= reserved_keys ? reserved_keys : (size_t) frustum_count;
 }
 #endif // MULTIRES_BFUSION_ALLOC_H
