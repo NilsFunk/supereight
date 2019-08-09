@@ -674,7 +674,10 @@ void buildDenseOctantList(HashType*               allocation_list,
           if (!node_ptr) {
             HashType key = oct.hash(curr_node.x(), curr_node.y(), curr_node.z(),
                                     std::min(curr_allocation_level, leaves_level));
-            if (travelled > 2 * doubling_ratio * min_allocation_size) {
+            // Some keys in the free_space_list might be voxel blocks, but no key in the allocation_list space will be a node.
+            // This is guaranteed, because the algorithm switches the list before it doubles the allocation scale further below.
+            if ((travelled - inv_voxel_dim * band / 2) > doubling_ratio * min_allocation_size &&
+                (travelled - inv_voxel_dim * band)   > 0) {
               if(free_space_count <= reserved_keys) {
                 unsigned const idx = free_space_count++;
                 free_space_list[idx] = key;
