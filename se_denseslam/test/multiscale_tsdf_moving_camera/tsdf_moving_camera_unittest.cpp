@@ -530,7 +530,7 @@ TEST_F(MultiscaleTSDFMovingCameraTest, SphereTranslation) {
     save3DSlice(oct_,
                 Eigen::Vector3i(0, 0, oct_.size()/2),
                 Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),
-                [](const auto& val) { return val.x; }, f.str().c_str());
+                [](const auto& val) { return val.x; }, 0, f.str().c_str());
   }
 
   for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
@@ -579,7 +579,7 @@ TEST_F(MultiscaleTSDFMovingCameraTest, SphereRotation) {
     save3DSlice(oct_,
                 Eigen::Vector3i(0, 0, oct_.size()/2),
                 Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),
-                [](const auto& val) { return val.x; }, f.str().c_str());
+                [](const auto& val) { return val.x; }, 0, f.str().c_str());
   }
 
   for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
@@ -620,7 +620,7 @@ TEST_F(MultiscaleTSDFMovingCameraTest, BoxTranslation) {
     save3DSlice(oct_,
                 Eigen::Vector3i(0, 0, oct_.size()/2),
                 Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),
-                [](const auto& val) { return val.x; }, f.str().c_str());
+                [](const auto& val) { return val.x; }, 0, f.str().c_str());
   }
 
   for (std::vector<obstacle*>::iterator box = boxes.begin(); box != boxes.end(); ++box) {
@@ -661,7 +661,7 @@ TEST_F(MultiscaleTSDFMovingCameraTest, SphereBoxTranslation) {
     save3DSlice(oct_,
                 Eigen::Vector3i(0, 0, oct_.size()/2),
                 Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),
-                [](const auto& val) { return val.x; }, f.str().c_str());
+                [](const auto& val) { return val.x; }, 0, f.str().c_str());
   }
 
   for (std::vector<obstacle*>::iterator obstacle = obstacles.begin(); obstacle != obstacles.end(); ++obstacle) {
