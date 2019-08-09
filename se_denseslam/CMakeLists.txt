@@ -63,4 +63,16 @@ target_compile_definitions(${appname}-multires PUBLIC ${field_type})
 
 list(APPEND BUILT_LIBS ${appname}-multires)
 
+# ----------------- MultiresOFusion -----------------
+set(field_type SE_FIELD_TYPE=MultiresOFusion)
+
+add_library(${appname}-multires-ofusion  ./src/DenseSLAMSystem.cpp)
+target_include_directories(${appname}-multires-ofusion PUBLIC include
+        ${TOON_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR} ${SOPHUS_INCLUDE_DIR})
+target_compile_options(${appname}-multires-ofusion PUBLIC ${compile_flags})
+target_link_libraries(${appname}-multires-ofusion ${libraries})
+target_compile_definitions(${appname}-multires-ofusion PUBLIC ${field_type})
+
+list(APPEND BUILT_LIBS ${appname}-multires-ofusion)
+
 set(BUILT_LIBS ${BUILT_LIBS} PARENT_SCOPE)

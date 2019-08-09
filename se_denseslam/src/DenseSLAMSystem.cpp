@@ -55,6 +55,7 @@
 #include "multires_kfusion/mapping_impl.hpp"
 #include "multires_kfusion/rendering_impl.hpp"
 #include "multires_bfusion/alloc_impl.hpp"
+#include "multires_bfusion/rendering_impl.hpp"
 
 
 extern PerfStats Stats;
@@ -249,49 +250,38 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
                                       volume_._size,
                                       voxelsize, 2*mu);
     } else if(std::is_same<FieldType, OFusion>::value) {
-//      allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(),
-//                                  *volume_._map_index,
-//                                  pose_, getCameraMatrix(k), float_depth_.data(), computation_size_, voxelsize,
-//                                  compute_stepsize, step_to_depth, 6*mu);
-//     allocated = buildParentOctantList(allocation_list_.data(),
-//                                       allocation_list_.capacity(),
-//                                       *volume_._map_index,
-//                                       pose_,
-//                                       K,
-//                                       float_depth_.data(),
-//                                       computation_size_,
-//                                       voxelsize,
-//                                       6*mu,
-//                                       2,
-//                                       16*BLOCK_SIDE);
-     buildDenseOctantList(allocation_list_.data(),
-                          frustum_list_.data(),
-                          allocated,
-                          frustum_allocated,
-                          allocation_list_.capacity(),
-                          *volume_._map_index,
-                          pose_,
-                          K,
-                          float_depth_.data(),
-                          computation_size_,
-                          voxelsize,
-                          6*mu,
-                          2,
-                          64*BLOCK_SIDE);
+      allocated = buildOctantList(allocation_list_.data(), allocation_list_.capacity(),
+                                  *volume_._map_index,
+                                  pose_, getCameraMatrix(k), float_depth_.data(), computation_size_, voxelsize,
+                                  compute_stepsize, step_to_depth, 6*mu);
     } else if(std::is_same<FieldType, MultiresSDF>::value) {
-     allocated  = buildAllocationList(allocation_list_.data(),
-                                      allocation_list_.capacity(),
-                                      *volume_._map_index, 
-                                      pose_, 
-                                      getCameraMatrix(k), 
-                                      float_depth_.data(),
-                                      computation_size_, 
-                                      volume_._size,
-                                      voxelsize, 
-                                      2*mu);
+      allocated  = buildAllocationList(allocation_list_.data(),
+                                       allocation_list_.capacity(),
+                                       *volume_._map_index,
+                                       pose_,
+                                       getCameraMatrix(k),
+                                       float_depth_.data(),
+                                       computation_size_,
+                                       volume_._size,
+                                       voxelsize,
+                                       2*mu);
+    } else if(std::is_same<FieldType, MultiresOFusion>::value) {
+      buildDenseOctantList(allocation_list_.data(),
+                           frustum_list_.data(),
+                           allocated,
+                           frustum_allocated,
+                           allocation_list_.capacity(),
+                           *volume_._map_index,
+                           pose_,
+                           K,
+                           float_depth_.data(),
+                           computation_size_,
+                           voxelsize,
+                           6 * mu,
+                           2,
+                           64 * BLOCK_SIDE);
     }
 
-//    volume_._map_index->allocateViaParent(allocation_list_.data(), allocated);
     volume_._map_index->allocate(allocation_list_.data(), allocated);
 
     std::string version;
@@ -305,7 +295,6 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
           funct);
       version = "sdf";
     } else if(std::is_same<FieldType, OFusion>::value) {
-
       float timestamp = (1.f/30.f)*frame;
       struct bfusion_update funct(float_depth_.data(),
           framesize,
@@ -322,6 +311,19 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
       se::multires::integrate(*volume_._map_index, Tcw, K, voxelsize,
           volume_._map_index->_offset, float_depth_, mu, maxweight, frame);
       version = "multires";
+    } else if(std::is_same<FieldType, MultiresOFusion>::value) {
+      float timestamp = frame;
+      struct bfusion_update funct(float_depth_.data(),
+                                  framesize,
+                                  mu, timestamp, voxelsize);
+
+      se::functor::projective_map(*volume_._map_index,
+                                  volume_._map_index->_offset,
+                                  Tcw,
+                                  K,
+                                  Eigen::Vector2i(computation_size_.x(), computation_size_.y()),
+                                  funct);
+      version = "multires-ofusion";
     }
 
     if (frame == 200) {
