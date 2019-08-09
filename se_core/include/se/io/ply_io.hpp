@@ -55,7 +55,9 @@ namespace se {
       int faces_num  = 0;
       while(n) {
         const Eigen::Vector3i corner = se::keyops::decode(n->code_);
-        const int side = 1 << (depth - se::keyops::level(n->code_));
+        const int scale = (depth - se::keyops::level(n->code_));
+        const int side = 1 << scale;
+        const int omega = 255*scale/depth;
 
         Eigen::Vector3f vertices[8];
         vertices[0] = corner.cast<float>(); 
@@ -68,7 +70,8 @@ namespace se {
         vertices[7] = (corner + Eigen::Vector3i(side, side, side)).cast<float>(); 
 
         for(int i = 0; i < 8; ++i) {
-          ss_vertex << vertices[i].x() << " " << vertices[i].y() << " " << vertices[i].z() << std::endl;
+          ss_vertex << vertices[i].x() << " " << vertices[i].y() << " " << vertices[i].z()
+                    << " " << omega << " " << omega << " " << omega << std::endl;
         }
 
         ss_faces << "4 " << vertex_num << " " << vertex_num + 1 
@@ -105,6 +108,9 @@ namespace se {
         f << "property float x" << std::endl;
         f << "property float y" << std::endl;
         f << "property float z" << std::endl;
+        f << "property uchar red" << std::endl;
+        f << "property uchar green" << std::endl;
+        f << "property uchar blue" << std::endl;
         f << "element face " << faces_num << std::endl;
         f << "property list uchar int vertex_index" << std::endl;
         f << "end_header" << std::endl;

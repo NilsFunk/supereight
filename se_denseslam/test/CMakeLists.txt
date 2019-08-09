@@ -17,6 +17,7 @@ include_directories(../../se_core/include
                     ${EIGEN3_INCLUDE_DIR} 
                     ${SOPHUS_INCLUDE_DIR})
 
+add_subdirectory(dense_allocation)
 add_subdirectory(multiscale_esdf_moving_sphere)
 add_subdirectory(multiscale_tsdf_moving_camera)
 add_subdirectory(multiscale_node_up_propagation)
