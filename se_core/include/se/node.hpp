@@ -83,17 +83,21 @@ public:
     return parent_ptr_;
   }
 
+  void active(const bool a){ active_ = a; }
+  bool active() const { return active_; }
+
   unsigned int timestamp() { return timestamp_; }
   unsigned int timestamp(unsigned int t) { return timestamp_ = t; }
 
   virtual bool isLeaf() { return false; }
 
 protected:
-    Node *parent_ptr_;
-    Node *child_ptr_[8];
+  Node *parent_ptr_;
+  Node *child_ptr_[8];
 private:
-    friend std::ofstream& internal::serialise <> (std::ofstream& out, Node& node);
-    friend void internal::deserialise <> (Node& node, std::ifstream& in);
+  bool active_;
+  friend std::ofstream& internal::serialise <> (std::ofstream& out, Node& node);
+  friend void internal::deserialise <> (Node& node, std::ifstream& in);
 };
 
 template <typename T>
@@ -136,9 +140,6 @@ class VoxelBlock: public Node<T> {
     value_type data(const int i) const;
     void data(const int i, const value_type& value);
 
-    void active(const bool a){ active_ = a; }
-    bool active() const { return active_; }
-
     int current_scale() { return current_scale_; }
     void current_scale(const int s) { current_scale_ = s; }
 
@@ -151,7 +152,6 @@ class VoxelBlock: public Node<T> {
   private:
     VoxelBlock(const VoxelBlock&) = delete;
     Eigen::Vector3i coordinates_;
-    bool active_;
     int current_scale_;
     int min_scale_;
 

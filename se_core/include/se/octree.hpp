@@ -897,8 +897,8 @@ bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
           *n = block_buffer_.acquire_block();
           (*n)->parent() = parent;
           (*n)->side_ = edge;
+          (*n)->active(true);
           static_cast<VoxelBlock<T> *>(*n)->coordinates(Eigen::Vector3i(unpack_morton(myKey)));
-          static_cast<VoxelBlock<T> *>(*n)->active(true);
           static_cast<VoxelBlock<T> *>(*n)->code_ = myKey | level;
           parent->children_mask_ = parent->children_mask_ | (1 << index);
         }
@@ -976,11 +976,11 @@ bool Octree<T>::allocateLevelViaParent(key_t* parent_keys, int num_parents, int 
           *n = block_buffer_.acquire_block();
           (*n)->parent() = parent;
           (*n)->side_ = edge;
+          (*n)->active(true);
           Eigen::Vector3i curr_parent = unpack_morton(parent_key);
           Eigen::Vector3i curr_child = curr_parent + edge*Eigen::Vector3i((child_idx & 1) > 0, (child_idx & 2) > 0, (child_idx & 4) > 0);
           se::key_t child_key = compute_morton(curr_child.x(), curr_child.y(), curr_child.z());
           static_cast<VoxelBlock<T> *>(*n)->coordinates(curr_child);
-          static_cast<VoxelBlock<T> *>(*n)->active(true);
           static_cast<VoxelBlock<T> *>(*n)->code_ = child_key | target_child_level;
           parent->children_mask_ = parent->children_mask_ | (1 << child_idx);
         }
