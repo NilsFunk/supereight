@@ -1,6 +1,6 @@
 #include <se/octree.hpp>
 #include <se/io/ply_io.hpp>
-#include "../src/bfusion/alloc_impl.hpp"
+#include "../src/multires_bfusion/alloc_impl.hpp"
 #include <gtest/gtest.h>
 #include <chrono>
 #include <ctime>

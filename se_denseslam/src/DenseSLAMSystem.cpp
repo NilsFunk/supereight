@@ -47,13 +47,14 @@
 #include "preprocessing.cpp"
 #include "tracking.cpp"
 #include "rendering.cpp"
-#include "bfusion/mapping_impl.hpp"
-#include "kfusion/mapping_impl.hpp"
 #include "bfusion/alloc_impl.hpp"
+#include "bfusion/mapping_impl.hpp"
 #include "kfusion/alloc_impl.hpp"
+#include "kfusion/mapping_impl.hpp"
 #include "multires_kfusion/alloc_impl.hpp"
 #include "multires_kfusion/mapping_impl.hpp"
 #include "multires_kfusion/rendering_impl.hpp"
+#include "multires_bfusion/alloc_impl.hpp"
 
 
 extern PerfStats Stats;
