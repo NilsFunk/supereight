@@ -103,17 +103,16 @@ struct voxel_traits<MultiresSDF> {
  *
 ****************************************************************************/
 
-typedef struct MultiresOFusion {
+typedef struct {
   float x;
-  bool  free;
   int   y;
 } MultiresOFusion;
 
 template<>
 struct voxel_traits<MultiresOFusion> {
   typedef MultiresOFusion value_type;
-  static inline value_type empty(){ return {0.f, 0, 0}; }
-  static inline value_type initValue(){ return {0.f, 0, 0}; }
+  static inline value_type empty(){ return {0.f, 0}; }
+  static inline value_type initValue(){ return {0.f, 0}; }
 };
 
 #endif
