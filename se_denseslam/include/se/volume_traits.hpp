@@ -63,10 +63,7 @@ typedef struct {
 
 template<>
 struct voxel_traits<OFusion> {
-  typedef struct  {
-    float x;
-    double y;
-  } value_type;
+  typedef OFusion value_type;
   static inline value_type empty(){ return {0.f, 0.f}; }
   static inline value_type initValue(){ return {0.f, 0.f}; }
 };
