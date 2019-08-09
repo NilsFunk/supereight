@@ -100,4 +100,23 @@ struct voxel_traits<MultiresSDF> {
   static inline value_type initValue(){ return {1.f, 1.f, 0, 0}; }
 };
 
+/******************************************************************************
+ *
+ * Multires OFusion voxel traits and algorithm specificic defines
+ *
+****************************************************************************/
+
+typedef struct MultiresOFusion {
+  float x;
+  bool  free;
+  int   y;
+} MultiresOFusion;
+
+template<>
+struct voxel_traits<MultiresOFusion> {
+  typedef MultiresOFusion value_type;
+  static inline value_type empty(){ return {0.f, 0, 0}; }
+  static inline value_type initValue(){ return {0.f, 0, 0}; }
+};
+
 #endif
