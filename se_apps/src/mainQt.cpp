@@ -24,6 +24,8 @@
 #include <perfstats.h>
 #include <PowerMonitor.h>
 
+#include <lodepng.h>
+
 #include <Eigen/Dense>
 
 #include <chrono>
@@ -293,6 +295,15 @@ int processAll(DepthReader *reader, bool processFrame, bool renderImages,
 				config->rendering_rate, camera, 0.75 * config->mu);
 		timings[6] = std::chrono::steady_clock::now();
 	}
+
+  if (frame >= 2 && frame <= 75) {
+    std::stringstream volume_render_filename;
+    volume_render_filename << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/living-room-" << frame << ".png";
+    lodepng_encode32_file(volume_render_filename.str().c_str(),
+                          (unsigned char*)volumeRender,
+                          (pipeline->getComputationResolution()).x(),
+                          (pipeline->getComputationResolution()).y());
+  }
 
 	if (powerMonitor != NULL && !firstFrame)
 		powerMonitor->sample();

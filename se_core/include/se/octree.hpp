@@ -50,6 +50,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "node.hpp"
 #include "utils/memory_pool.hpp"
 #include "algorithms/unique.hpp"
+#include "algorithms/filter.hpp"
 #include "geometry/aabb_collision.hpp"
 #include "interpolation/interp_gather.hpp"
 
@@ -104,6 +105,7 @@ public:
 
   inline int size() const { return size_; }
   inline float dim() const { return dim_; }
+  inline int max_level() const {return max_level_; }
   inline Node<T>* root() const { return root_; }
 
   /*! \brief Retrieves voxel value at coordinates (x,y,z), if not present it 
@@ -227,6 +229,15 @@ public:
    */
   bool allocate(key_t *keys, int num_elem);
 
+  /*! \brief allocate a set of voxel blocks via their positional key
+   * \param keys collection of voxel block keys to be allocated (i.e. their
+   * morton number)
+   * \param number of keys in the keys array
+   */
+  bool update_free_space(key_t *keys, int num_elem, int frame);
+
+  void reduceFreeSpace();
+
   /*! \brief allocate a set of voxel blocks via their parent key
    * \param keys collection of parent keys of the eight children to be allocated (i.e. their
    * morton number)
@@ -279,6 +290,9 @@ private:
   // Parallel allocation of a given tree level for a set of input keys.
   // Pre: levels above target_level must have been already allocated
   bool allocate_level(key_t * keys, int num_tasks, int target_level);
+
+  // Parallel allocation of a given tree level for a set of input keys if the parents max value in not free
+  bool update_free_space_level(key_t * keys, int num_tasks, int target_level, int frame);
 
   // Parallel full child allocation of a given tree level for a set of input parent keys.
   // Pre: levels above target_level must have been already allocated
@@ -915,6 +929,172 @@ bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
   }
   return true;
 }
+
+template <typename T>
+bool Octree<T>::update_free_space(key_t *keys, int num_elem, int frame){
+
+#if defined(_OPENMP) && !defined(__clang__)
+  __gnu_parallel::sort(keys, keys+num_elem);
+#else
+  std::sort(keys, keys+num_elem);
+#endif
+
+  num_elem = algorithms::filter_ancestors(keys, num_elem, max_level_);
+  reserveBuffers(num_elem);
+
+  int last_elem = 0;
+  bool success = false;
+
+  const int leaves_level = max_level_ - log2(blockSide);
+  const unsigned int shift = MAX_BITS - max_level_ - 1;
+  for (int level = 1; level <= leaves_level; level++){
+    const key_t mask = MASK[level + shift] | SCALE_MASK;
+    compute_prefix(keys, keys_at_level_, num_elem, mask);
+    last_elem = algorithms::unique_multiscale(keys_at_level_, num_elem);
+    success = update_free_space_level(keys_at_level_, last_elem, level, frame);
+  }
+
+  std::vector<se::Node<T>*> active_list;
+  auto node_array = getNodesBuffer();
+
+  auto is_active_predicate = [](const se::Node<T>* n) {
+    return n->active();
+  };
+  algorithms::filter(active_list, node_array, is_active_predicate);
+
+  std::deque<Node<T>*> prop_list;
+  for(const auto& n : active_list) {
+    if(n->parent()) {
+      prop_list.push_back(n->parent());
+      const unsigned int id = se::child_id(n->code_,
+                                           se::keyops::level(n->code_), max_level_);
+      auto data = n->data(n->coordinates(), se::math::log2_const(se::VoxelBlock<T>::side));
+      auto& parent_data = n->parent()->value_[id];
+      parent_data = data;
+    }
+  }
+
+  while(!prop_list.empty()) {
+    Node<T>* n = prop_list.front();
+    prop_list.pop_front();
+    if(n->timestamp() == frame) continue;
+    propagate_up(n, max_level_, frame);
+    if(n->parent()) prop_list.push_back(n->parent());
+  }
+
+  return success;
+}
+
+template <typename T>
+bool Octree<T>::update_free_space_level(key_t* keys, int num_tasks, int target_level, int frame){
+
+  int leaves_level = max_level_ - log2(blockSide);
+  nodes_buffer_.reserve(num_tasks);
+
+#pragma omp parallel for
+  for (int i = 0; i < num_tasks; i++){
+    Node<T> ** n = &root_;
+    key_t myKey = keyops::code(keys[i]);
+    int myLevel = keyops::level(keys[i]);
+    if(myLevel < target_level) continue;
+
+    int edge = size_/2;
+    for (int level = 1; level <= target_level; ++level){
+      int index = child_id(myKey, level, max_level_);
+      Node<T> * parent = *n;
+      n = &(*n)->child(index);
+      if (parent->value_[index].x == 0.3) {
+        break;
+      }
+      if(!(*n)){
+        if(level == leaves_level){
+          *n = block_buffer_.acquire_block();
+          (*n)->parent() = parent;
+          (*n)->side_ = edge;
+          (*n)->active(true);
+          static_cast<VoxelBlock<T> *>(*n)->coordinates(Eigen::Vector3i(unpack_morton(myKey)));
+          static_cast<VoxelBlock<T> *>(*n)->code_ = myKey | level;
+          parent->children_mask_ = parent->children_mask_ | (1 << index);
+        }
+        else  {
+          *n = nodes_buffer_.acquire_block();
+          (*n)->parent() = parent;
+          (*n)->code_ = myKey | level;
+          (*n)->side_ = edge;
+          parent->children_mask_ = parent->children_mask_ | (1 << index);
+          if (myLevel == target_level) {
+            parent->value_[index] = {0.03, frame};
+            (*n)->active(true);
+          }
+        }
+      }
+      edge /= 2;
+    }
+  }
+  return true;
+}
+
+template <typename T>
+void Octree<T>::reduceFreeSpace() {
+  std::vector<se::Node<T>*> active_node_list;
+  std::vector<se::VoxelBlock<T>*> active_block_list;
+  auto node_array = getNodesBuffer();
+  auto block_array = getBlockBuffer();
+
+  std::deque<Node<T>*> prop_list;
+
+  auto is_active_node_predicate = [](const se::Node<T>* n) {
+    return n->active();
+  };
+
+  auto is_active_block_predicate = [](const se::VoxelBlock<T>* b) {
+    return b->active();
+  };
+
+  algorithms::filter(active_node_list, node_array, is_active_node_predicate);
+  algorithms::filter(active_block_list, block_array, is_active_block_predicate);
+
+  for(const auto& n : active_node_list) {
+    if(n->parent()) {
+      prop_list.push_back(n);
+    }
+  }
+
+  for(const auto& b : active_block_list) {
+    if(b->parent()) {
+      se::Node<T>* p = b->parent();
+      const unsigned int id = se::child_id(b->code_,
+                                           se::keyops::level(b->code_), max_level_);
+      prop_list.push_back(b->parent());
+      if (p->value_[id] == 0.3) {
+        // Add parent to list and delete entire subtree
+        prop_list.push_back(b->parent());
+        p->child(id) = NULL;
+        deleteNode(b);
+      }
+    }
+  }
+
+
+  while(!prop_list.empty()) {
+    Node<T>* n = prop_list.front();
+    prop_list.pop_front();
+    if (n) {
+      if (n->parent()) {
+        se::Node<T> *p = n->parent();
+        const unsigned int id = se::child_id(n->code_,
+                                             se::keyops::level(n->code_), max_level_);
+        if (p->value_[id] == 0.3) {
+          // Add parent to list and delete entire subtree
+          prop_list.push_back(n->parent());
+          p->child(id) = NULL;
+          deleteNode(n);
+        }
+      }
+    }
+  }
+}
+
 
 template <typename T>
 bool Octree<T>::allocateViaParent(key_t *parent_keys, int num_elem){

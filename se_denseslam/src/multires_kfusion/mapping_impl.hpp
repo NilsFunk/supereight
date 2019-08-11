@@ -126,7 +126,7 @@ void propagate_up(se::VoxelBlock<T>* block, const int scale) {
 }
 
 template <typename T>
-void propagate_up(se::Node<T>* node, const int max_depth, 
+void propagate_up(se::Node<T>* node, const int max_level,
                   const unsigned timestamp) {
   node->timestamp(timestamp);
 
@@ -147,7 +147,7 @@ void propagate_up(se::Node<T>* node, const int max_depth,
   }
 
   const unsigned int id = se::child_id(node->code_, 
-      se::keyops::level(node->code_), max_depth);
+      se::keyops::level(node->code_), max_level);
 
   if(num_samples > 0) {
     auto& data = node->parent()->value_[id];
@@ -496,7 +496,7 @@ template <>void integrate(se::Octree<MultiresSDF>& map, const Sophus::SE3f& Tcw,
         if(b->parent()) {
           prop_list.push_back(b->parent());
           const unsigned int id = se::child_id(b->code_,
-                                               se::keyops::code(b->code_), map.max_depth);
+                                               se::keyops::level(b->code_), map.max_level());
           auto data = b->data(b->coordinates(), se::math::log2_const(se::VoxelBlock<MultiresSDF>::side));
           auto& parent_data = b->parent()->value_[id];
           parent_data = data;
@@ -507,7 +507,7 @@ template <>void integrate(se::Octree<MultiresSDF>& map, const Sophus::SE3f& Tcw,
         Node<MultiresSDF>* n = prop_list.front();
         prop_list.pop_front();
         if(n->timestamp() == frame) continue;
-        propagate_up(n, map.max_depth, frame);
+        propagate_up(n, map.max_level(), frame);
         if(n->parent()) prop_list.push_back(n->parent());
       }
  }
