@@ -300,6 +300,7 @@ protected:
   float band_;
   generate_depth_image generate_depth_image_;
   std::vector<se::key_t> allocation_list_;
+  std::vector<se::key_t> free_space_list_;
   std::vector<se::key_t> parent_list_;
   std::vector<se::VoxelBlock<float>*> active_list_;
 };
@@ -366,12 +367,16 @@ TEST_F(DenseAllocation, DenseInFrustumBFusionAllocationSphere) {
   size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
                  camera_parameter_.imageSize().y();
   allocation_list_.reserve(total);
+  free_space_list_.reserve(total);
 
   auto start = std::chrono::system_clock::now();
 
-  size_t allocated = buildDenseOctantList(allocation_list_.data(), allocation_list_.capacity(), oct_,
-                                          camera_pose, camera_parameter_.K(), depth_image_, camera_parameter_.imageSize(),
-                                          voxel_dim_, band_, doubling_factor_, max_allocation_size_);
+  size_t allocated;
+  size_t free_space;
+
+  buildDenseOctantList(allocation_list_.data(), free_space_list_.data(), allocated, free_space,
+                       allocation_list_.capacity(), oct_, camera_pose, camera_parameter_.K(), depth_image_,
+                       camera_parameter_.imageSize(), voxel_dim_, band_, doubling_factor_, max_allocation_size_);
   auto end = std::chrono::system_clock::now();
 
   std::chrono::duration<double> elapsed_seconds = end-start;
@@ -381,6 +386,7 @@ TEST_F(DenseAllocation, DenseInFrustumBFusionAllocationSphere) {
             << "elapsed time: " << elapsed_seconds.count() << "s\n";
 
   oct_.allocate(allocation_list_.data(), allocated);
+  oct_.allocate(free_space_list_.data(), free_space);
 
   std::stringstream f_ply;
   f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/dense-in-frustum-bfusion-allocation-sphere-unittest.ply";
