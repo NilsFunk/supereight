@@ -2,22 +2,21 @@
 #include <gtest/gtest.h>
 #include "../src/multires_kfusion/mapping_impl.hpp"
 
-typedef struct testT {
+typedef struct MultiresSDFtest {
   float x;
   float x_last;
-  int y;
-  int delta_y;
-} testT;
+  int   y;
+  int   delta_y;
+} MultiresSDFtest;
 
-template <>
-struct voxel_traits<testT> {
-  typedef testT value_type;
-  static inline value_type empty(){ return {0.f, 0.f, 1, 0};}
-  static inline value_type initValue(){ return {0.f, 0.f, 1, 0};}
+template<>
+struct voxel_traits<MultiresSDFtest> {
+  typedef MultiresSDFtest value_type;
+  static inline value_type empty(){ return {0.f, 0.f, 1, 0}; }
+  static inline value_type initValue(){ return {0.f, 0.f, 1, 0}; }
 };
 
-
-class MultiscaleNodeUpPropagation : public ::testing::Test {
+class MultiresSDFNodeUpPropagation : public ::testing::Test {
 protected:
   virtual void SetUp() {
     size_ = 64;                               // 512 x 512 x 512 voxel^3
@@ -26,7 +25,7 @@ protected:
     dim_ = size_ * voxel_size_;               // [m^3]
     oct_.init(size_, dim_);
 
-    side_ = se::VoxelBlock<testT>::side;
+    side_ = se::VoxelBlock<MultiresSDFtest>::side;
     for(int z = 0; z < size_; z += side_) {
       for(int y = 0; y < size_; y += side_) {
         for(int x = 0; x < size_; x += side_) {
@@ -36,9 +35,18 @@ protected:
       }
     }
     oct_.allocate(alloc_list.data(), alloc_list.size());
+
+    for(int z = 0; z < size_; z++) {
+      for(int y = 0; y < size_; y++) {
+        for(int x = 0; x < size_; x++) {
+          Eigen::Vector3i voxel_tmp = Eigen::Vector3i(x, y, z);
+          oct_.set(voxel_tmp.x(), voxel_tmp.y(), voxel_tmp.z(), {0, 0, 1, 0});
+        }
+      }
+    }
   }
 
-  typedef se::Octree<testT> OctreeT;
+  typedef se::Octree<MultiresSDFtest> OctreeT;
   OctreeT oct_;
   int size_;
   int side_;
@@ -50,9 +58,9 @@ private:
   std::vector<se::key_t> alloc_list;
 };
 
-TEST_F(MultiscaleNodeUpPropagation, Simple) {
-  std::vector<se::VoxelBlock<testT>*> active_list;
-  std::deque<se::Node<testT>*> prop_list;
+TEST_F(MultiresSDFNodeUpPropagation, Simple) {
+  std::vector<se::VoxelBlock<MultiresSDFtest>*> active_list;
+  std::deque<se::Node<MultiresSDFtest>*> prop_list;
 
   // Update some voxels.
   constexpr size_t num_voxels = 4;
@@ -68,7 +76,7 @@ TEST_F(MultiscaleNodeUpPropagation, Simple) {
         }
       }
     }
-    se::VoxelBlock<testT>* vb = oct_.fetch(voxels[i].x(), voxels[i].y(), voxels[i].z());
+    se::VoxelBlock<MultiresSDFtest>* vb = oct_.fetch(voxels[i].x(), voxels[i].y(), voxels[i].z());
     active_list.push_back(vb);
   }
 
@@ -83,7 +91,7 @@ TEST_F(MultiscaleNodeUpPropagation, Simple) {
 
       const unsigned int id = se::child_id(b->code_,
                                            se::keyops::level(b->code_),  max_level_);
-      auto data = b->data(b->coordinates(), se::math::log2_const(se::VoxelBlock<MultiresSDF>::side));
+      auto data = b->data(b->coordinates(), se::math::log2_const(se::VoxelBlock<MultiresSDFtest>::side));
       auto& parent_data = b->parent()->value_[id];
       parent_data = data;
     }
@@ -92,14 +100,14 @@ TEST_F(MultiscaleNodeUpPropagation, Simple) {
   int frame = 1;
 
   while(!prop_list.empty()) {
-    se::Node<testT>* n = prop_list.front();
+    se::Node<MultiresSDFtest>* n = prop_list.front();
     prop_list.pop_front();
     if(n->timestamp() == frame) continue;
     se::multires::propagate_up(n, max_level_, frame);
     if(n->parent()) prop_list.push_back(n->parent());
   }
 
-  se::Node<testT>* n = oct_.root();
+  se::Node<MultiresSDFtest>* n = oct_.root();
   ASSERT_EQ(n->value_[0].x, 2.f/64);
   ASSERT_EQ(n->value_[1].x, 0);
   ASSERT_EQ(n->value_[2].x, 0);
