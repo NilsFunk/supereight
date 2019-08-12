@@ -1,6 +1,7 @@
 #include <se/octree.hpp>
 #include <se/io/ply_io.hpp>
 #include "../src/multires_bfusion/alloc_impl.hpp"
+#include <se/volume_traits.hpp>
 #include <gtest/gtest.h>
 #include <chrono>
 #include <ctime>
@@ -290,7 +291,7 @@ protected:
   float* depth_image_;
   camera_parameter camera_parameter_;
 
-  typedef se::Octree<float> OctreeT;
+  typedef se::Octree<MultiresOFusion> OctreeT;
   OctreeT oct_;
   int size_;
   float voxel_dim_;
@@ -302,7 +303,7 @@ protected:
   std::vector<se::key_t> allocation_list_;
   std::vector<se::key_t> free_space_list_;
   std::vector<se::key_t> parent_list_;
-  std::vector<se::VoxelBlock<float>*> active_list_;
+  std::vector<se::VoxelBlock<MultiresOFusion>*> active_list_;
 };
 
 TEST_F(DenseAllocation, DenseBFusionAllocationSphere) {
