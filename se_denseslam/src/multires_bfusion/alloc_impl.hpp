@@ -543,7 +543,8 @@ void buildDenseOctantList(HashType*               allocation_list,
                           const float             voxel_dim,
                           const float             band,
                           const int               doubling_ratio,
-                          int                     max_allocation_size) {
+                          int                     max_allocation_size,
+                          int                     frame) {
   // Create inverse voxel dimension, camera matrix and projection matrix
   const float inv_voxel_dim = 1.f/voxel_dim; // inv_voxel_dim := [m] to [voxel]; voxel_dim := [voxel] to [m]
   Eigen::Matrix4f inv_K = K.inverse();
@@ -638,7 +639,6 @@ void buildDenseOctantList(HashType*               allocation_list,
       // Distance travelled in [voxel]
       float travelled = 0;
 
-      int count = 0;
       do {
         if ((curr_node.x() < size)
             && (curr_node.y() < size)
@@ -649,7 +649,6 @@ void buildDenseOctantList(HashType*               allocation_list,
           last_node = curr_node;
           bool is_halfend = false;
           while (true) {
-            count++;
             curr_node = curr_allocation_size*(((last_node).array().floor())/curr_allocation_size).cast<int>();
             if (curr_allocation_size > min_allocation_size) {
               if (!reprojectIntoImage(Twc, K, image_size, mask, downsample, curr_node, voxel_dim, curr_allocation_size)) {
@@ -669,9 +668,9 @@ void buildDenseOctantList(HashType*               allocation_list,
             curr_node = tmp_node;
           }
 
-          auto node_ptr = oct.fetch_octant(curr_node.x(), curr_node.y(), curr_node.z(),
+          auto n = oct.fetch_octant(curr_node.x(), curr_node.y(), curr_node.z(),
                                            curr_allocation_level);
-          if (!node_ptr) {
+          if (!n) {
             HashType key = oct.hash(curr_node.x(), curr_node.y(), curr_node.z(),
                                     std::min(curr_allocation_level, leaves_level));
             // Some keys in the free_space_list might be voxel blocks, but no key in the allocation_list space will be a node.
@@ -688,8 +687,10 @@ void buildDenseOctantList(HashType*               allocation_list,
               allocation_list[idx] = key;
             }
           } else {
-            (node_ptr)->active(true);
+            n->active(true);
           }
+        } else {
+          break;
         }
         if ((travelled - inv_voxel_dim * band / 2) > doubling_ratio * curr_max_allocation_size &&
             (travelled - inv_voxel_dim * band)   > 0 &&

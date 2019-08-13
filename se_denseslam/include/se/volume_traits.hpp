@@ -76,6 +76,7 @@ struct voxel_traits<OFusion> {
 #define SURF_BOUNDARY 0.f
 #define TOP_CLAMP     1000.f
 #define BOTTOM_CLAMP  (-TOP_CLAMP)
+#define FREE_THRESH   -5.0149f
 
 /******************************************************************************
  *
@@ -105,14 +106,15 @@ struct voxel_traits<MultiresSDF> {
 
 typedef struct {
   float x;
+  float x_max;
   int   y;
 } MultiresOFusion;
 
 template<>
 struct voxel_traits<MultiresOFusion> {
   typedef MultiresOFusion value_type;
-  static inline value_type empty(){ return {0.f, 0}; }
-  static inline value_type initValue(){ return {0.f, 0}; }
+  static inline value_type empty(){ return {0.f, 0.f, 0}; }
+  static inline value_type initValue(){ return {0.f, 0.f, 0}; }
 };
 
 #endif

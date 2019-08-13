@@ -120,6 +120,6 @@ TEST_F(MultiresOFusionNodeUpPropagation, Simple) {
   ASSERT_EQ(n->value_[5].x_max, 0);
   ASSERT_EQ(n->value_[6].x_max, 0);
   ASSERT_EQ(n->value_[7].x_max, 0);
-  
+
   ASSERT_EQ(n->value_[3].x, 2.f/(512*8));
 }

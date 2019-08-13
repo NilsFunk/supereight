@@ -20,13 +20,6 @@
 #define LEFT	1
 #define MIDDLE	2
 
-template <>
-struct voxel_traits<float> {
-  typedef float value_type;
-  static inline value_type empty(){ return 0.f; }
-  static inline value_type initValue(){ return 0.f; }
-};
-
 struct camera_parameter {
 public:
   camera_parameter() {};
@@ -391,6 +384,61 @@ TEST_F(DenseAllocation, DenseInFrustumBFusionAllocationSphere) {
 
   std::stringstream f_ply;
   f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/dense-in-frustum-bfusion-allocation-sphere-unittest.ply";
+  se::print_octree(f_ply.str().c_str(), oct_);
+
+  for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
+    free(*sphere);
+  }
+  free(depth_image_);
+};
+
+TEST_F(DenseAllocation, FreeSpaceAllocation) {
+  std::vector<obstacle*> spheres;
+
+  // Allocate single sphere in world frame
+  spheres.push_back(new sphere_obstacle(voxel_dim_*Eigen::Vector3f(size_, size_*1/2, size_*1/2), 0.5f));
+  generate_depth_image_ = generate_depth_image(depth_image_, spheres);
+
+  Eigen::Matrix4f camera_pose = Eigen::Matrix4f::Identity();
+  // Camera orientation
+  Eigen::Matrix3f Rbc;
+  Rbc << 0, 0, 1, -1, 0, 0, 0, -1, 0;
+  Eigen::Matrix3f Rwb = Eigen::Matrix3f::Identity();
+  camera_pose.topLeftCorner<3,3>()  = Rwb*Rbc;
+  // Camera position
+  camera_pose.topRightCorner<3,1>() = Eigen::Vector3f(0, size_/2, size_/2)*voxel_dim_;
+
+  camera_parameter_.setPose(camera_pose);
+  generate_depth_image_(camera_parameter_);
+
+  int num_vox_per_pix = size_;
+  size_t total = num_vox_per_pix * camera_parameter_.imageSize().x() *
+                 camera_parameter_.imageSize().y();
+  allocation_list_.reserve(total);
+  free_space_list_.reserve(total);
+
+  auto start = std::chrono::system_clock::now();
+
+  size_t allocated;
+  size_t free_space;
+
+  buildDenseOctantList(allocation_list_.data(), free_space_list_.data(), allocated, free_space,
+                       allocation_list_.capacity(), oct_, camera_pose, camera_parameter_.K(), depth_image_,
+                       camera_parameter_.imageSize(), voxel_dim_, band_, doubling_factor_, max_allocation_size_);
+  auto end = std::chrono::system_clock::now();
+
+  std::chrono::duration<double> elapsed_seconds = end-start;
+  std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+
+  std::cout << "finished computation at " << std::ctime(&end_time)
+            << "elapsed time: " << elapsed_seconds.count() << "s\n";
+
+//  int frame = 1;
+
+//  oct_.update_free_space(free_space_list_.data(), free_space, frame);
+
+  std::stringstream f_ply;
+  f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/free-space-allocation-sphere-unittest.ply";
   se::print_octree(f_ply.str().c_str(), oct_);
 
   for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
