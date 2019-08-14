@@ -78,6 +78,8 @@ template <typename BlockType>
       /*! \brief Add a BlockType element to the MemoryPool2 and return a pointer
        * to it.
        *
+       * \note This function should be thread-safe.
+       *
        * \warning No bounds checking is performed. The MemoryPool2 must have
        * enough memory allocated using MemoryPool2::reserve to accomodate the
        * new element.
@@ -91,20 +93,23 @@ template <typename BlockType>
 
       /*! \brief Erase the BlockType element at index i.
        *
-       * \warning This is an inefficient operation as a potentially large
-       * amount of data will be copied.
-       *
-       * \warning When calling MemoryPool::erase, ensure no other threads are
-       * storing the values of pointers to the MemoryPool, such as those
-       * acquired by calling MemoryPool::acquire_block.
+       * \note This function should be thread-safe.
        *
        * \warning No bounds checking is performed. Ensure i is smaller than
        * MemoryPool::size.
        */
       void erase(const size_t i) {
-        data_.erase(data_.begin() + i);
-        // Decrement the number of elements.
+        // Create a mutex local to the function. The unique lock is an object
+        // that guarantees the mutex will be unlocked on destruction (e.g. when
+        // the function exits or after an exception is raised).
+        // This code should be thread safe in C++11.
+        // https://stackoverflow.com/questions/14106653/are-function-local-static-mutexes-thread-safe
+        static std::mutex mtx;
+        std::unique_lock<std::mutex> lock(mtx);
+
+        // Decrement the number of elements and erase the requested element.
         current_block_.fetch_sub(1);
+        data_.erase(data_.begin() + i);
       }
 
     private:
