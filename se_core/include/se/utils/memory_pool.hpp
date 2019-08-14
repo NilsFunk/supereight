@@ -96,36 +96,6 @@ template <typename BlockType>
         return ptr;
       }
 
-      /*! \brief Erase the BlockType element at index i.
-       *
-       * \warning This is an inefficient operation as a potentially large
-       * amount of data will be copied.
-       *
-       * \warning When calling MemoryPool::erase, ensure no other threads are
-       * storing the values of pointers to the MemoryPool, such as those
-       * acquired by calling MemoryPool::acquire_block.
-       *
-       * \warning No bounds checking is performed. Ensure i is smaller than
-       * MemoryPool::size.
-       */
-      void erase(const size_t i) {
-        if (i == size() - 1) {
-          // Erasing the last element. No copying needed, just decrement the
-          // number of elements.
-          current_block_.fetch_sub(1);
-        } else {
-          // Need to move all elements from i+1 to the end to the previous
-          // index.
-          BlockType * dest = operator[](i);
-          const BlockType * source = operator[](i + 1);
-          const size_t num_bytes = (size() - i - 1) * sizeof(BlockType);
-          std::memmove(dest, source, num_bytes);
-
-          // Decrement the number of elements.
-          current_block_.fetch_sub(1);
-        }
-      }
-
     private:
       size_t reserved_;
       std::atomic<unsigned int> current_block_;
