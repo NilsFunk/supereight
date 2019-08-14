@@ -32,12 +32,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef MEM_POOL_H
 #define MEM_POOL_H
 
-#include <iostream>
-#include <vector>
 #include <atomic>
+#include <cmath>
+#include <cstring>
+#include <iostream>
 #include <mutex>
+#include <vector>
 
 namespace se {
+/*! \brief Manage the memory allocated for Octree nodes.
+ *
+ * \note The memory is managed using pages. A single page is an array of
+ * BlockType with MemoryPool::pagesize_ elements. Then an std::vector of pages
+ * is used to store multiple pages.
+ */
 template <typename BlockType>
   class MemoryPool {
     public:
@@ -53,19 +61,32 @@ template <typename BlockType>
         }
       }
 
+      /*! \brief The number of BlockType elements stored in the MemoryPool.
+       */
       size_t size() const { return current_block_; };
 
+      /*! \brief Return a pointer to the BlockType element with index i.
+       */
       BlockType* operator[](const size_t i) const {
         const int page_idx = i / pagesize_;
         const int ptr_idx = i % pagesize_;
         return pages_[page_idx] + (ptr_idx);
       }
 
+      /*! \brief Reserve memory for an additional n BlockType elements.
+       */
       void reserve(const size_t n){
         bool requires_realloc = (current_block_ + n) > reserved_;
         if(requires_realloc) expand(n);
       }
 
+      /*! \brief Add a BlockType element to the MemoryPool and return a pointer
+       * to it.
+       *
+       * \warning No bounds checking is performed. The MemoryPool must have
+       * enough memory allocated using MemoryPool::reserve to accomodate the
+       * new element.
+       */
       BlockType * acquire_block(){
         // Fetch-add returns the value before increment
         int current = current_block_.fetch_add(1);
@@ -73,6 +94,36 @@ template <typename BlockType>
         const int ptr_idx = current % pagesize_;
         BlockType * ptr = pages_[page_idx] + (ptr_idx);
         return ptr;
+      }
+
+      /*! \brief Erase the BlockType element at index i.
+       *
+       * \warning This is an inefficient operation as a potentially large
+       * amount of data will be copied.
+       *
+       * \warning When calling MemoryPool::erase, ensure no other threads are
+       * storing the values of pointers to the MemoryPool, such as those
+       * acquired by calling MemoryPool::acquire_block.
+       *
+       * \warning No bounds checking is performed. Ensure i is smaller than
+       * MemoryPool::size.
+       */
+      void erase(const size_t i) {
+        if (i == size() - 1) {
+          // Erasing the last element. No copying needed, just decrement the
+          // number of elements.
+          current_block_.fetch_sub(1);
+        } else {
+          // Need to move all elements from i+1 to the end to the previous
+          // index.
+          BlockType * dest = operator[](i);
+          const BlockType * source = operator[](i + 1);
+          const size_t num_bytes = (size() - i - 1) * sizeof(BlockType);
+          std::memmove(dest, source, num_bytes);
+
+          // Decrement the number of elements.
+          current_block_.fetch_sub(1);
+        }
       }
 
     private:
