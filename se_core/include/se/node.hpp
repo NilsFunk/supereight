@@ -61,6 +61,7 @@ public:
     side_ = 0;
     children_mask_ = 0;
     timestamp_ = -1;
+    active_ = false;
     for (unsigned int i = 0; i < 8; i++){
       value_[i]     = init_val();
       parent_ptr_ = NULL;
