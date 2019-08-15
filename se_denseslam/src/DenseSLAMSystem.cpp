@@ -279,7 +279,7 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
                            voxelsize,
                            6 * mu,
                            2,
-                           64 * BLOCK_SIDE,
+                           64 * BLOCK_SIDE);
                            frame);
     }
 
