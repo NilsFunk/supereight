@@ -942,8 +942,7 @@ bool Octree<T>::allocate_free_space(key_t *keys, int num_elem){
   std::sort(keys, keys+num_elem);
 #endif
 
-  num_elem = algorithms::unique(keys, num_elem);
-//  num_elem = algorithms::filter_descendant(keys, num_elem, max_level_);
+  num_elem = algorithms::filter_descendant(keys, num_elem, max_level_);
 
   reserveBuffers(num_elem);
 

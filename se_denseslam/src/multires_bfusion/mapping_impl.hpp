@@ -333,35 +333,33 @@ namespace se {
         };
         algorithms::filter(active_node_list, nodes_array, is_active_node_predicate);
 
-        for(const auto& n : active_node_list) {
+        std::deque<Node<MultiresOFusion>*> active_node_queue;
+        for(const auto& n : active_node_list)
+          active_node_queue.push_back(n);
+
+        while(!active_node_queue.empty()) {
+          Node<MultiresOFusion>* n = active_node_queue.front();
           for(int i = 0; i < 8; ++i) {
-            auto& data = n->value_[i];
-            data.x += -5.015;
-            data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
-            data.x_max = data.x;
-            data.y = frame;
+            if (n->child(i) == NULL) {
+              auto& data = n->value_[i];
+              data.x += -5.015;
+              data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
+              data.x_max = data.x;
+              data.y = frame;
+            } else if (!n->child(i)->isLeaf()){
+              active_node_queue.push_back(n->child(i));
+              n->child(i)->active(true);
+              active_node_list.push_back(n->child(i));
+            }
           }
+          active_node_queue.pop_front();
         }
 
-//        for(const auto& n : active_node_list) {
-//          for(int i = 0; i < 8; ++i) {
-//            if (n->child(i) == NULL) {
-//              auto& data = n->value_[i];
-//              data.x += -5.015;
-//              data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
-//              data.x_max = data.x;
-//              data.y = frame;
-//            } else if (!n->child(i)->isLeaf()){
-//              active_node_list.push_back(n->child(i));
-//              n->child(i)->active(true);
-//            }
+////          if(n->parent() && n->children_mask_ == 0) {
+//          if(n->parent()) {
+//            prop_list.push_back(n->parent());
 //          }
-//////          if(n->parent() && n->children_mask_ == 0) {
-////          if(n->parent()) {
-////            prop_list.push_back(n->parent());
-////          }
-////          n->active(false);
-//        }
+//          n->active(false);
 
         for(const auto& b : active_list) {
           if(b->parent()) {
