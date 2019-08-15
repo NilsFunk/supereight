@@ -284,25 +284,6 @@ private:
   std::vector<obstacle*> obstacles_;
 };
 
-//template <typename T>
-//std::vector<se::VoxelBlock<MultiresOFusion>*> buildActiveList(se::Octree<T>& map, camera_parameter camera_parameter, float voxel_size) {
-//  const se::MemoryPool<se::VoxelBlock<MultiresOFusion> >& block_array =
-//      map.getBlockBuffer();
-//  for(unsigned int i = 0; i < block_array.size(); ++i) {
-//    block_array[i]->active(false);
-//  }
-//
-//  const Eigen::Matrix4f K = camera_parameter.K();
-//  const Eigen::Matrix4f Twc = camera_parameter.Twc();
-//  const Eigen::Matrix4f Tcw = (camera_parameter.Twc()).inverse();
-//  std::vector<se::VoxelBlock<MultiresOFusion>*> active_list;
-//  auto in_frustum_predicate =
-//      std::bind(se::algorithms::in_frustum<se::VoxelBlock<MultiresOFusion>>, std::placeholders::_1,
-//                voxel_size, K*Tcw, camera_parameter.imageSize());
-//  se::algorithms::filter(active_list, block_array, in_frustum_predicate);
-//  return active_list;
-//}
-
 class MultiresOFusionMovingCameraTest : public ::testing::Test {
 protected:
   virtual void SetUp() {
@@ -318,19 +299,6 @@ protected:
     offset_ = Eigen::Vector3f::Constant(0.5);
 
     const int side = se::VoxelBlock<MultiresOFusion>::side;
-//    for(int z = side/2; z < size_; z += side) {
-//      for(int y = side/2; y < size_; y += side) {
-//        for(int x = side/2; x < size_; x += side) {
-//          const Eigen::Vector3i vox(x, y, z);
-//          alloc_list.push_back(oct_.hash(vox(0), vox(1), vox(2)));
-//        }
-//      }
-//    }
-//    oct_.allocate(alloc_list.data(), alloc_list.size());
-//
-//    // Generate depth image
-//    depth_image_ =
-//        (float *) malloc(sizeof(float) * image_size.x() * image_size.y());
   }
 
   const unsigned width_  = 640;
@@ -345,7 +313,6 @@ protected:
   float dim_;
   float mu_;
   Eigen::Vector3f offset_;
-  std::vector<se::VoxelBlock<MultiresOFusion>*> active_list_;
   generate_depth_image generate_depth_image_;
 
 private:
@@ -372,8 +339,6 @@ TEST_F(MultiresOFusionMovingCameraTest, SphereRotation) {
     Rwb <<  std::cos(angle), -std::sin(angle), 0,
         std::sin(angle),  std::cos(angle), 0,
         0,                0, 1;
-
-    std::cout << "Angle: " << angle << std::endl;
 
     camera_pose.topLeftCorner<3,3>()  = Rwb*Rbc;
 
