@@ -193,7 +193,7 @@ namespace se {
           return;
         }
 
-        float x_max = -TOP_CLAMP;
+        float x_max = BOTTOM_CLAMP;
         for(int i = 0; i < 8; ++i) {
           const auto& tmp = node->value_[i];
           if (tmp.x_max > x_max)
@@ -326,6 +326,43 @@ namespace se {
         std::deque<Node<MultiresOFusion>*> prop_list;
         std::mutex deque_mutex;
 
+        std::vector<se::Node<MultiresOFusion>*> active_node_list;
+        auto& nodes_array = map.getNodesBuffer();
+        auto is_active_node_predicate = [](const se::Node<MultiresOFusion>* n) {
+          return n->active();
+        };
+        algorithms::filter(active_node_list, nodes_array, is_active_node_predicate);
+
+        for(const auto& n : active_node_list) {
+          for(int i = 0; i < 8; ++i) {
+            auto& data = n->value_[i];
+            data.x += -5.015;
+            data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
+            data.x_max = data.x;
+            data.y = frame;
+            std::cout << n->value_[i].x_max << "/" << data.x << std::endl;
+          }
+        }
+
+//        for(const auto& n : active_node_list) {
+//          for(int i = 0; i < 8; ++i) {
+//            if (n->child(i) == NULL) {
+//              auto& data = n->value_[i];
+//              data.x += -5.015;
+//              data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
+//              data.x_max = data.x;
+//              data.y = frame;
+//            } else if (n->child(i)->side_ != BLOCK_SIDE){
+//              active_node_list.push_back(n->child(i));
+//            }
+//          }
+////          if(n->parent() && n->children_mask_ == 0) {
+//          if(n->parent()) {
+//            prop_list.push_back(n->parent());
+//          }
+//          n->active(false);
+//        }
+
         for(const auto& b : active_list) {
           if(b->parent()) {
             prop_list.push_back(b->parent());
@@ -346,37 +383,16 @@ namespace se {
           if(n->parent()) prop_list.push_back(n->parent());
         }
 
-        std::vector<se::Node<MultiresOFusion>*> active_node_list;
-        auto& nodes_array = map.getNodesBuffer();
-        auto is_active_node_predicate = [](const se::Node<MultiresOFusion>* n) {
-          return n->active();
-        };
-        algorithms::filter(active_node_list, nodes_array, is_active_node_predicate);
-
         for(const auto& n : active_node_list) {
-          for(int i = 0; i < 8; ++i) {
-            if (n->child(i) == NULL) {
-              auto& data = n->value_[i];
-              data.x += -5.015;
-              data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
-              data.x_max = data.x;
-              data.y = frame;
-            } else if (n->child(i)->side_ != BLOCK_SIDE){
-              active_node_list.push_back(n->child(i));
-            }
-          }
-          if(n->parent() && n->children_mask_ == 0) {
-            prop_list.push_back(n->parent());
-          }
+          prop_list.push_back(n);
           n->active(false);
         }
 
         while(!prop_list.empty()) {
-          se::Node<MultiresOFusion>* n = prop_list.front();
+          Node<MultiresOFusion>* n = prop_list.front();
           prop_list.pop_front();
-          n->timestamp(frame);
-          if(!n->parent())
-            continue;
+          propagate_up(n, map.max_level(), frame);
+          if(n->parent()) prop_list.push_back(n->parent());
         }
 
         int count = 0;

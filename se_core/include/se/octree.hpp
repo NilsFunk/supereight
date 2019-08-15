@@ -237,8 +237,6 @@ public:
    */
   bool allocate_free_space(key_t *keys, int num_elem);
 
-  void reduceFreeSpace();
-
   /*! \brief allocate a set of voxel blocks via their parent key
    * \param keys collection of parent keys of the eight children to be allocated (i.e. their
    * morton number)
@@ -945,6 +943,7 @@ bool Octree<T>::allocate_free_space(key_t *keys, int num_elem){
 #endif
 
   num_elem = algorithms::unique(keys, num_elem);
+//  num_elem = algorithms::filter_descendant(keys, num_elem, max_level_);
 
   reserveBuffers(num_elem);
 
@@ -1004,9 +1003,12 @@ bool Octree<T>::allocate_free_space_level(key_t* keys, int num_tasks, int target
           for (int i = 0; i < 8; i++) {
             (*n)->value_[i] = parent->value_[index];
           }
-          if (myLevel == level || parent->value_[index].x <= free_thresh()) {
+          if (parent->value_[index].x <= free_thresh()) {
             (*n)->active(true);
             break;
+          }
+          if (myLevel == level) {
+            (*n)->active(true);
           }
         }
       }
@@ -1015,90 +1017,6 @@ bool Octree<T>::allocate_free_space_level(key_t* keys, int num_tasks, int target
   }
   return true;
 }
-
-//template <typename T>
-//void Octree<T>::reduceFreeSpace() {
-//  std::vector<se::Node<T>*> active_node_list;
-//  std::vector<se::VoxelBlock<T>*> active_block_list;
-//
-//  std::deque<Node<T>*> prop_list;
-//
-//  auto is_active_node_predicate = [](const se::Node<T>* n) {
-//    return n->active();
-//  };
-//
-//  auto is_active_block_predicate = [](const se::VoxelBlock<T>* b) {
-//    return b->active();
-//  };
-//
-//  algorithms::filter(active_node_list, nodes_buffer_, is_active_node_predicate);
-//  algorithms::filter(active_block_list, block_buffer_, is_active_block_predicate);
-//
-//  for(const auto& n : active_node_list) {
-//    if (n->side_ > BLOCK_SIDE) {
-//      const unsigned int id = se::child_id(n->code_,
-//                                           se::keyops::level(n->code_), max_level_);
-//      if (n->parent()->value_[id].x_max > free_thresh()) {
-//        float mean = 0;
-//        float x_max = free_thresh();
-//
-//        for (int i = 0; i < 8; i++) {
-//          if (n->child(i) == NULL) {
-//            n->value_[i] = {free_thresh(), free_thresh(), frame};
-//          }
-//          const auto& tmp = n->value_[i];
-//          mean += tmp.x;
-//          if (tmp.x_max > x_max)
-//            x_max = tmp.x_max;
-//        }
-//
-//        auto& data = n->parent()->value_[id];
-//        data.x = mean / 8;
-//        data.x_max = x_max;
-//        n->active(true);
-//      }
-//    }
-//    if(n->parent()) {
-//      prop_list.push_back(n);
-//    }
-//  }
-//
-//  for(auto b : active_block_list) {
-//    if(b->parent()) {
-//      se::Node<T> *p = b->parent();
-//      const unsigned int id = se::child_id(b->code_,
-//                                           se::keyops::level(b->code_), max_level_);
-//      prop_list.push_back(b->parent());
-//      if (p->value_[id].x_max < -5.f) {
-//        // Add parent to list and delete entire subtree
-//        prop_list.push_back(b->parent());
-//        p->child(id) = NULL;
-//        b->coordinates(Eigen::Vector3i::Constant(0));
-//        b->active(false);
-//      }
-//    }
-//  }
-//
-//
-//  while(!prop_list.empty()) {
-//    Node<T>* n = prop_list.front();
-//    prop_list.pop_front();
-//    if (n) {
-//      if (n->parent()) {
-//        se::Node<T> *p = n->parent();
-//        const unsigned int id = se::child_id(n->code_,
-//                                             se::keyops::level(n->code_), max_level_);
-//        if (p->value_[id].x_max < -5.f) {
-//          // Add parent to list and delete entire subtree
-//          prop_list.push_back(n->parent());
-//          p->child(id) = NULL;
-////          deleteNode(&n);
-//        }
-//      }
-//    }
-//  }
-//}
-
 
 template <typename T>
 bool Octree<T>::allocateViaParent(key_t *parent_keys, int num_elem){
