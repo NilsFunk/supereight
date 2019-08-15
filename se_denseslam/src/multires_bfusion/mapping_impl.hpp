@@ -281,7 +281,7 @@ namespace se {
 
                 // Update the occupancy probability
                 const double delta_t = (double)(frame - data.y) / 30;
-                data.x = applyWindow(data.x, SURF_BOUNDARY, delta_t, CAPITAL_T);
+//                data.x = applyWindow(data.x, SURF_BOUNDARY, delta_t, CAPITAL_T);
                 data.x = se::math::clamp(updateLogs(data.x, sample), BOTTOM_CLAMP, TOP_CLAMP);
                 data.x_max = data.x;
                 data.y = frame;
@@ -340,7 +340,6 @@ namespace se {
             data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
             data.x_max = data.x;
             data.y = frame;
-            std::cout << n->value_[i].x_max << "/" << data.x << std::endl;
           }
         }
 
