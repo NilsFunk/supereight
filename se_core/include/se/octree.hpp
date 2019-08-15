@@ -1018,37 +1018,12 @@ bool Octree<T>::update_free_space_level(key_t* keys, int num_tasks, int target_l
       n = &(*n)->child(index);
       Eigen::Vector3i curr_node = Eigen::Vector3i(unpack_morton(myKey));
 
-      bool is_node = false;
-      if (curr_node.x() == 240 &&
-          curr_node.y() == 288 &&
-          curr_node.z() == 256 ) {
-        std::cout << curr_node << std::endl;
-        std::cout << "l: " << level << "/" << myLevel << std::endl;
-        std::cout << "v: " << parent->value_[index].x_max << std::endl;
-        is_node = true;
-      }
-
-
-
-      if (parent->value_[index].x_max < -5.f && parent->timestamp_ != frame) {
-        if (is_node)
-          std::cout << "CHECK" << std::endl;
-        break;
-      }
-
-      if (is_node)
-        std::cout << "----" << std::endl;
-
       if(!(*n)) {
         if(level == leaves_level){
           *n = block_buffer_.acquire_block();
           (*n)->parent() = parent;
           (*n)->side_ = edge;
           (*n)->active(true);
-          if (curr_node.x() == 240 &&
-              curr_node.y() == 288 &&
-              curr_node.z() == 256 )
-            std::cout << "WHHHHATTTT?" << std::endl;
           static_cast<VoxelBlock<T> *>(*n)->coordinates(Eigen::Vector3i(unpack_morton(myKey)));
           static_cast<VoxelBlock<T> *>(*n)->code_ = myKey | level;
           parent->children_mask_ = parent->children_mask_ | (1 << index);
@@ -1080,88 +1055,88 @@ bool Octree<T>::update_free_space_level(key_t* keys, int num_tasks, int target_l
   return true;
 }
 
-template <typename T>
-void Octree<T>::reduceFreeSpace() {
-  std::vector<se::Node<T>*> active_node_list;
-  std::vector<se::VoxelBlock<T>*> active_block_list;
-
-  std::deque<Node<T>*> prop_list;
-
-  auto is_active_node_predicate = [](const se::Node<T>* n) {
-    return n->active();
-  };
-
-  auto is_active_block_predicate = [](const se::VoxelBlock<T>* b) {
-    return b->active();
-  };
-
-  algorithms::filter(active_node_list, nodes_buffer_, is_active_node_predicate);
-  algorithms::filter(active_block_list, block_buffer_, is_active_block_predicate);
-
-  for(const auto& n : active_node_list) {
-    if (n->side_ > BLOCK_SIDE) {
-      const unsigned int id = se::child_id(n->code_,
-                                           se::keyops::level(n->code_), max_level_);
-      if (n->parent()->value_[id].x_max > FREE_THRESH) {
-        float mean = 0;
-        float x_max = -TOP_CLAMP;
-
-        for (int i = 0; i < 8; i++) {
-          if (n->child(i) == NULL) {
-            n->value_[i] = {FREE_THRESH, FREE_THRESH, frame};
-          }
-          const auto& tmp = n->value_[i];
-          mean += tmp.x;
-          if (tmp.x_max > x_max)
-            x_max = tmp.x_max;
-        }
-
-        auto& data = n->parent()->value_[id];
-        data.x = mean / 8;
-        data.x_max = x_max;
-        n->active(true);
-      }
-    }
-    if(n->parent()) {
-      prop_list.push_back(n);
-    }
-  }
-
-  for(auto b : active_block_list) {
-    if(b->parent()) {
-      se::Node<T> *p = b->parent();
-      const unsigned int id = se::child_id(b->code_,
-                                           se::keyops::level(b->code_), max_level_);
-      prop_list.push_back(b->parent());
-      if (p->value_[id].x_max < -5.f) {
-        // Add parent to list and delete entire subtree
-        prop_list.push_back(b->parent());
-        p->child(id) = NULL;
-        b->coordinates(Eigen::Vector3i::Constant(0));
-        b->active(false);
-      }
-    }
-  }
-
-
-  while(!prop_list.empty()) {
-    Node<T>* n = prop_list.front();
-    prop_list.pop_front();
-    if (n) {
-      if (n->parent()) {
-        se::Node<T> *p = n->parent();
-        const unsigned int id = se::child_id(n->code_,
-                                             se::keyops::level(n->code_), max_level_);
-        if (p->value_[id].x_max < -5.f) {
-          // Add parent to list and delete entire subtree
-          prop_list.push_back(n->parent());
-          p->child(id) = NULL;
-//          deleteNode(&n);
-        }
-      }
-    }
-  }
-}
+//template <typename T>
+//void Octree<T>::reduceFreeSpace() {
+//  std::vector<se::Node<T>*> active_node_list;
+//  std::vector<se::VoxelBlock<T>*> active_block_list;
+//
+//  std::deque<Node<T>*> prop_list;
+//
+//  auto is_active_node_predicate = [](const se::Node<T>* n) {
+//    return n->active();
+//  };
+//
+//  auto is_active_block_predicate = [](const se::VoxelBlock<T>* b) {
+//    return b->active();
+//  };
+//
+//  algorithms::filter(active_node_list, nodes_buffer_, is_active_node_predicate);
+//  algorithms::filter(active_block_list, block_buffer_, is_active_block_predicate);
+//
+//  for(const auto& n : active_node_list) {
+//    if (n->side_ > BLOCK_SIDE) {
+//      const unsigned int id = se::child_id(n->code_,
+//                                           se::keyops::level(n->code_), max_level_);
+//      if (n->parent()->value_[id].x_max > free_thresh()) {
+//        float mean = 0;
+//        float x_max = free_thresh();
+//
+//        for (int i = 0; i < 8; i++) {
+//          if (n->child(i) == NULL) {
+//            n->value_[i] = {free_thresh(), free_thresh(), frame};
+//          }
+//          const auto& tmp = n->value_[i];
+//          mean += tmp.x;
+//          if (tmp.x_max > x_max)
+//            x_max = tmp.x_max;
+//        }
+//
+//        auto& data = n->parent()->value_[id];
+//        data.x = mean / 8;
+//        data.x_max = x_max;
+//        n->active(true);
+//      }
+//    }
+//    if(n->parent()) {
+//      prop_list.push_back(n);
+//    }
+//  }
+//
+//  for(auto b : active_block_list) {
+//    if(b->parent()) {
+//      se::Node<T> *p = b->parent();
+//      const unsigned int id = se::child_id(b->code_,
+//                                           se::keyops::level(b->code_), max_level_);
+//      prop_list.push_back(b->parent());
+//      if (p->value_[id].x_max < -5.f) {
+//        // Add parent to list and delete entire subtree
+//        prop_list.push_back(b->parent());
+//        p->child(id) = NULL;
+//        b->coordinates(Eigen::Vector3i::Constant(0));
+//        b->active(false);
+//      }
+//    }
+//  }
+//
+//
+//  while(!prop_list.empty()) {
+//    Node<T>* n = prop_list.front();
+//    prop_list.pop_front();
+//    if (n) {
+//      if (n->parent()) {
+//        se::Node<T> *p = n->parent();
+//        const unsigned int id = se::child_id(n->code_,
+//                                             se::keyops::level(n->code_), max_level_);
+//        if (p->value_[id].x_max < -5.f) {
+//          // Add parent to list and delete entire subtree
+//          prop_list.push_back(n->parent());
+//          p->child(id) = NULL;
+////          deleteNode(&n);
+//        }
+//      }
+//    }
+//  }
+//}
 
 
 template <typename T>
