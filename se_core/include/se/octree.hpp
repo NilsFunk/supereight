@@ -1012,6 +1012,9 @@ bool Octree<T>::allocate_free_space_level(key_t* keys, int num_tasks, int target
             (*n)->active(true);
           }
         }
+      } else if (parent->value_[index].x <= free_thresh()) {
+        (*n)->active(true);
+        break;
       }
       edge /= 2;
     }

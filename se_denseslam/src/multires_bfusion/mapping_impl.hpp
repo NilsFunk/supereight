@@ -351,15 +351,16 @@ namespace se {
 //              data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
 //              data.x_max = data.x;
 //              data.y = frame;
-//            } else if (n->child(i)->side_ != BLOCK_SIDE){
+//            } else if (!n->child(i)->isLeaf()){
 //              active_node_list.push_back(n->child(i));
+//              n->child(i)->active(true);
 //            }
 //          }
-////          if(n->parent() && n->children_mask_ == 0) {
-//          if(n->parent()) {
-//            prop_list.push_back(n->parent());
-//          }
-//          n->active(false);
+//////          if(n->parent() && n->children_mask_ == 0) {
+////          if(n->parent()) {
+////            prop_list.push_back(n->parent());
+////          }
+////          n->active(false);
 //        }
 
         for(const auto& b : active_list) {
@@ -402,13 +403,34 @@ namespace se {
                                                se::keyops::level(b->code_), map.max_level());
           if (b->parent()) {
             if (b->parent()->value_[id].x == voxel_traits<MultiresOFusion>::freeThresh()) {
-              b->parent()->child(id) = nullptr;
+              b->parent()->child(id) = NULL;
               block_array.erase(count);
               continue;
             }
           }
           count++;
         }
+
+        count = 0;
+        int num_nodes = nodes_array.size();
+        for (int i = 1; i < num_nodes; i++) {
+          auto n = nodes_array[count];
+          const unsigned int id = se::child_id(n->code_,
+                                               se::keyops::level(n->code_), map.max_level());
+          if (n->parent()) {
+            if (n->parent()->value_[id].x == voxel_traits<MultiresOFusion>::freeThresh()) {
+              n->parent()->child(id) = NULL;
+              nodes_array.erase(count);
+              continue;
+            }
+          } else if (n->side_ != map.size()) {
+            n->parent()->child(id) = NULL;
+            nodes_array.erase(count);
+            continue;
+          }
+          count++;
+        }
+
       }
     }
   }

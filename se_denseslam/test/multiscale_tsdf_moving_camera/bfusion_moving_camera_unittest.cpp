@@ -28,7 +28,7 @@
 #define SENSOR_LIMIT 5
 
 // Number of frames to move from start to end position
-#define FRAMES 40
+#define FRAMES 80
 
 // Fusion level,
 // 0-3 are the according levels in the voxel_block
@@ -334,7 +334,7 @@ TEST_F(MultiresOFusionMovingCameraTest, SphereRotation) {
     Eigen::Matrix3f Rbc;
     Rbc << 0, 0, 1, -1, 0, 0, 0, -1, 0;
 
-    float angle = float(frame)/float(frames - 1) * M_PI / 4 - M_PI / 8;
+    float angle = - float(frame)/float(frames - 1) * M_PI / 4 + M_PI / 8;
     Eigen::Matrix3f Rwb;
     Rwb <<  std::cos(angle), -std::sin(angle), 0,
         std::sin(angle),  std::cos(angle), 0,
@@ -370,7 +370,8 @@ TEST_F(MultiresOFusionMovingCameraTest, SphereRotation) {
     se::multires::ofusion::integrate(oct_, Tcw, camera_parameter_.K(), voxel_size_, offset_,
                                       depth_image_, mu_, frame);
 
-    std::stringstream f_ply;
+      std::stringstream f_ply;
+
     f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-" << frame << ".ply";
     se::print_octree(f_ply.str().c_str(), oct_);
 
