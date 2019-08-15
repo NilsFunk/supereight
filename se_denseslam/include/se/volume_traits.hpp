@@ -62,9 +62,8 @@ struct voxel_traits<SDF> {
 
 #define INTERP_THRESH 0.05f
 #define SURF_BOUNDARY 0.f
-#define TOP_CLAMP     1000.f
+#define TOP_CLAMP     2 * 5.0149f
 #define BOTTOM_CLAMP  (-TOP_CLAMP)
-#define FREE_THRESH   -5.0149f
 
 typedef struct {
     float x;
