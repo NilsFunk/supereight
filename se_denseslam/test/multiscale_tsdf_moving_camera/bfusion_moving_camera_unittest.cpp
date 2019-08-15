@@ -28,7 +28,7 @@
 #define SENSOR_LIMIT 5
 
 // Number of frames to move from start to end position
-#define FRAMES 10
+#define FRAMES 40
 
 // Fusion level,
 // 0-3 are the according levels in the voxel_block
@@ -367,7 +367,7 @@ TEST_F(MultiresOFusionMovingCameraTest, SphereRotation) {
     Eigen::Matrix3f Rbc;
     Rbc << 0, 0, 1, -1, 0, 0, 0, -1, 0;
 
-    float angle = float(frame)/float(frames - 1) * 2 * M_PI / 4;
+    float angle = float(frame)/float(frames - 1) * M_PI / 4 - M_PI / 8;
     Eigen::Matrix3f Rwb;
     Rwb <<  std::cos(angle), -std::sin(angle), 0,
         std::sin(angle),  std::cos(angle), 0,
@@ -399,40 +399,25 @@ TEST_F(MultiresOFusionMovingCameraTest, SphereRotation) {
                          camera_parameter_.imageSize(), voxel_size_, 6 * mu_, 2, 4*OctreeT::blockSide);
 
     oct_.allocate(allocation_list_.data(), allocated);
-    oct_.update_free_space(free_space_list_.data(), free_space,frame);
+    oct_.allocate_free_space(free_space_list_.data(), free_space);
 
     const Sophus::SE3f&    Tcw = Sophus::SE3f(camera_pose).inverse();
     se::multires::ofusion::integrate(oct_, Tcw, camera_parameter_.K(), voxel_size_, offset_,
                                       depth_image_, mu_, frame);
 
-    int k = 0;
     std::stringstream f_ply;
-    f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-" << 2*frame+k << ".ply";
+    f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-" << frame << ".ply";
     se::print_octree(f_ply.str().c_str(), oct_);
 
     std::stringstream f_vtk;
-    f_vtk << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-"  << 2*frame+k << ".vtk";
+    f_vtk << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-"  << frame << ".vtk";
     save3DSlice(oct_,
                 Eigen::Vector3i(0, 0, oct_.size()/2),
                 Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),
                 [](const auto& val) { return val.x; }, 0, f_vtk.str().c_str());
-
-    k++;
-    oct_.reduceFreeSpace();
-
-    std::stringstream f_ply2;
-    f_ply2 << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-" << 2*frame+k << ".ply";
-    se::print_octree(f_ply2.str().c_str(), oct_);
-
-    std::stringstream f_vtk2;
-    f_vtk2 << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-"  << 2*frame+k << ".vtk";
-    save3DSlice(oct_,
-                Eigen::Vector3i(0, 0, oct_.size()/2),
-                Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),
-                [](const auto& val) { return val.x; }, 0, f_vtk2.str().c_str());
   }
 
   for (std::vector<obstacle*>::iterator sphere = spheres.begin(); sphere != spheres.end(); ++sphere) {
     free(*sphere);
   }
-}
+};

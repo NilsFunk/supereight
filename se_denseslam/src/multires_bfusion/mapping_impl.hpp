@@ -319,12 +319,12 @@ namespace se {
         se::algorithms::filter(active_list, block_array, is_active_predicate,
                                in_frustum_predicate);
 
-        std::deque<Node<MultiresOFusion>*> prop_list;
-        std::mutex deque_mutex;
-
         struct multires_block_update funct(map, Tcw, K, voxelsize,
                                            offset, depth, frame, mu);
         se::functor::internal::parallel_for_each(active_list, funct);
+
+        std::deque<Node<MultiresOFusion>*> prop_list;
+        std::mutex deque_mutex;
 
         for(const auto& b : active_list) {
           if(b->parent()) {
@@ -344,6 +344,55 @@ namespace se {
           if(n->timestamp() == frame) continue;
           propagate_up(n, map.max_level(), frame);
           if(n->parent()) prop_list.push_back(n->parent());
+        }
+
+        std::vector<se::Node<MultiresOFusion>*> active_node_list;
+        auto& nodes_array = map.getNodesBuffer();
+        auto is_active_node_predicate = [](const se::Node<MultiresOFusion>* n) {
+          return n->active();
+        };
+        algorithms::filter(active_node_list, nodes_array, is_active_node_predicate);
+
+        for(const auto& n : active_node_list) {
+          for(int i = 0; i < 8; ++i) {
+            if (n->child(i) == NULL) {
+              auto& data = n->value_[i];
+              data.x += -5.015;
+              data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
+              data.x_max = data.x;
+              data.y = frame;
+            } else if (n->child(i)->side_ != BLOCK_SIDE){
+              active_node_list.push_back(n->child(i));
+            }
+          }
+          if(n->parent() && n->children_mask_ == 0) {
+            prop_list.push_back(n->parent());
+          }
+          n->active(false);
+        }
+
+        while(!prop_list.empty()) {
+          se::Node<MultiresOFusion>* n = prop_list.front();
+          prop_list.pop_front();
+          n->timestamp(frame);
+          if(!n->parent())
+            continue;
+        }
+
+        int count = 0;
+        int num_blocks = block_array.size();
+        for (int i = 0; i < num_blocks; i++) {
+          auto b = block_array[count];
+          const unsigned int id = se::child_id(b->code_,
+                                               se::keyops::level(b->code_), map.max_level());
+          if (b->parent()) {
+            if (b->parent()->value_[id].x == voxel_traits<MultiresOFusion>::freeThresh()) {
+              b->parent()->child(id) = nullptr;
+              block_array.erase(count);
+              continue;
+            }
+          }
+          count++;
         }
       }
     }

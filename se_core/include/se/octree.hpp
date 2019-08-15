@@ -235,7 +235,7 @@ public:
    * morton number)
    * \param number of keys in the keys array
    */
-  bool update_free_space(key_t *keys, int num_elem, int frame);
+  bool allocate_free_space(key_t *keys, int num_elem);
 
   void reduceFreeSpace();
 
@@ -293,7 +293,7 @@ private:
   bool allocate_level(key_t * keys, int num_tasks, int target_level);
 
   // Parallel allocation of a given tree level for a set of input keys if the parents max value in not free
-  bool update_free_space_level(key_t * keys, int num_tasks, int target_level, int frame);
+  bool allocate_free_space_level(key_t * keys, int num_tasks, int target_level);
 
   // Parallel full child allocation of a given tree level for a set of input parent keys.
   // Pre: levels above target_level must have been already allocated
@@ -864,7 +864,6 @@ void Octree<T>::reserveKeys(const int n){
 
 template <typename T>
 bool Octree<T>::allocate(key_t *keys, int num_elem){
-
 #if defined(_OPENMP) && !defined(__clang__)
   __gnu_parallel::sort(keys, keys+num_elem);
 #else
@@ -916,6 +915,9 @@ bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
           static_cast<VoxelBlock<T> *>(*n)->coordinates(Eigen::Vector3i(unpack_morton(myKey)));
           static_cast<VoxelBlock<T> *>(*n)->code_ = myKey | level;
           parent->children_mask_ = parent->children_mask_ | (1 << index);
+          for (int i = 0; i < VoxelBlock<T>::buff_size; i++) {
+            static_cast<VoxelBlock<T> *>(*n)->data(i) = {parent->value_[index]};
+          }
         }
         else  {
           *n = nodes_buffer_.acquire_block();
@@ -923,6 +925,9 @@ bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
           (*n)->code_ = myKey | level;
           (*n)->side_ = edge;
           parent->children_mask_ = parent->children_mask_ | (1 << index);
+          for (int i = 0; i < 8; i++) {
+            (*n)->value_[i] = parent->value_[index];
+          }
         }
       }
       edge /= 2;
@@ -932,8 +937,7 @@ bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
 }
 
 template <typename T>
-bool Octree<T>::update_free_space(key_t *keys, int num_elem, int frame){
-
+bool Octree<T>::allocate_free_space(key_t *keys, int num_elem){
 #if defined(_OPENMP) && !defined(__clang__)
   __gnu_parallel::sort(keys, keys+num_elem);
 #else
@@ -952,53 +956,14 @@ bool Octree<T>::update_free_space(key_t *keys, int num_elem, int frame){
   for (int level = 1; level <= leaves_level; level++){
     const key_t mask = MASK[level + shift] | SCALE_MASK;
     compute_prefix(keys, keys_at_level_, num_elem, mask);
-//    last_elem = algorithms::unique_multiscale(keys_at_level_, num_elem);
-    success = update_free_space_level(keys_at_level_, num_elem, level, frame);
+    last_elem = algorithms::unique(keys_at_level_, num_elem);
+    success = allocate_free_space_level(keys_at_level_, last_elem, level);
   }
-
-  std::vector<se::Node<T>*> active_list;
-
-  auto is_active_predicate = [](const se::Node<T>* n) {
-    return n->active();
-  };
-  algorithms::filter(active_list, nodes_buffer_, is_active_predicate);
-
-  std::deque<Node<T>*> prop_list;
-  for(const auto& n : active_list) {
-    if(n->parent()) {
-      prop_list.push_back(n->parent());
-    }
-  }
-
-  while(!prop_list.empty()) {
-    Node<T>* n = prop_list.front();
-    prop_list.pop_front();
-    if(n->timestamp() == frame) continue;
-    n->timestamp(frame);
-    if(!n->parent()) {
-      continue;
-    }
-
-    float x_max = free_thresh();
-    for(int i = 0; i < 8; ++i) {
-      const auto& tmp = n->value_[i];
-      if (tmp.x_max > x_max)
-        x_max = tmp.x_max;
-    }
-
-    const unsigned int id = se::child_id(n->code_,
-                                         se::keyops::level(n->code_), max_level_);
-    auto& data = n->parent()->value_[id];
-    data.x = x_max;
-    data.x_max = x_max;
-    if(n->parent()) prop_list.push_back(n->parent());
-  }
-
   return success;
 }
 
 template <typename T>
-bool Octree<T>::update_free_space_level(key_t* keys, int num_tasks, int target_level, int frame){
+bool Octree<T>::allocate_free_space_level(key_t* keys, int num_tasks, int target_level){
 
   int leaves_level = max_level_ - log2(blockSide);
   nodes_buffer_.reserve(num_tasks);
@@ -1010,7 +975,7 @@ bool Octree<T>::update_free_space_level(key_t* keys, int num_tasks, int target_l
     int myLevel = keyops::level(keys[i]);
     if(myLevel < target_level) continue;
 
-    int edge = size_/2;
+    int edge = size_ / 2;
     for (int level = 1; level <= target_level; ++level){
       int index = child_id(myKey, level, max_level_);
       Node<T> * parent = *n;
@@ -1026,6 +991,9 @@ bool Octree<T>::update_free_space_level(key_t* keys, int num_tasks, int target_l
           static_cast<VoxelBlock<T> *>(*n)->coordinates(Eigen::Vector3i(unpack_morton(myKey)));
           static_cast<VoxelBlock<T> *>(*n)->code_ = myKey | level;
           parent->children_mask_ = parent->children_mask_ | (1 << index);
+          for (int i = 0; i < VoxelBlock<T>::buff_size; i++) {
+            static_cast<VoxelBlock<T> *>(*n)->data(i) = {parent->value_[index]};
+          }
         }
         else  {
           *n = nodes_buffer_.acquire_block();
@@ -1033,21 +1001,15 @@ bool Octree<T>::update_free_space_level(key_t* keys, int num_tasks, int target_l
           (*n)->code_ = myKey | level;
           (*n)->side_ = edge;
           parent->children_mask_ = parent->children_mask_ | (1 << index);
-          if (myLevel == level) {
-            parent->value_[index] = {-5.015f, -5.015f, frame};
-            for (int c_index = 0; c_index < 8; c_index++) {
-              (*n)->value_[c_index] = {-5.015f, -5.015f, frame};
-            }
+          for (int i = 0; i < 8; i++) {
+            (*n)->value_[i] = parent->value_[index];
+          }
+          if (myLevel == level || parent->value_[index].x <= free_thresh()) {
             (*n)->active(true);
+            break;
           }
         }
-      } else if (myLevel == level) {
-        for (int c_index = 0; c_index < 8; c_index++) {
-          if ((*n)->child(c_index) == NULL)
-            (*n)->value_[c_index] = {-5.015f, -5.015f, frame};
-        }
       }
-
       edge /= 2;
     }
   }
