@@ -914,7 +914,7 @@ bool Octree<T>::allocate_level(key_t* keys, int num_tasks, int target_level){
           static_cast<VoxelBlock<T> *>(*n)->code_ = myKey | level;
           parent->children_mask_ = parent->children_mask_ | (1 << index);
           for (int i = 0; i < VoxelBlock<T>::buff_size; i++) {
-            static_cast<VoxelBlock<T> *>(*n)->data(i) = {parent->value_[index]};
+            static_cast<VoxelBlock<T> *>(*n)->data(i, parent->value_[index]);
           }
         }
         else  {
@@ -991,8 +991,9 @@ bool Octree<T>::allocate_free_space_level(key_t* keys, int num_tasks, int target
           static_cast<VoxelBlock<T> *>(*n)->code_ = myKey | level;
           parent->children_mask_ = parent->children_mask_ | (1 << index);
           for (int i = 0; i < VoxelBlock<T>::buff_size; i++) {
-            static_cast<VoxelBlock<T> *>(*n)->data(i) = {parent->value_[index]};
+            static_cast<VoxelBlock<T> *>(*n)->data(i, parent->value_[index]);
           }
+
         }
         else  {
           *n = nodes_buffer_.acquire_block();
