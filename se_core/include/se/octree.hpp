@@ -978,11 +978,10 @@ bool Octree<T>::update_free_space(key_t *keys, int num_elem, int frame){
     if(!n->parent()) {
       continue;
     }
-    float mean = 0;
-    float x_max = 0.f;
+
+    float x_max = free_thresh();
     for(int i = 0; i < 8; ++i) {
       const auto& tmp = n->value_[i];
-      mean += tmp.x;
       if (tmp.x_max > x_max)
         x_max = tmp.x_max;
     }
@@ -990,7 +989,7 @@ bool Octree<T>::update_free_space(key_t *keys, int num_elem, int frame){
     const unsigned int id = se::child_id(n->code_,
                                          se::keyops::level(n->code_), max_level_);
     auto& data = n->parent()->value_[id];
-    data.x = mean / 8;
+    data.x = x_max;
     data.x_max = x_max;
     if(n->parent()) prop_list.push_back(n->parent());
   }

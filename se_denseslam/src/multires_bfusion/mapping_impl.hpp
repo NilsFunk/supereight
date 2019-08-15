@@ -193,11 +193,9 @@ namespace se {
           return;
         }
 
-        float mean = 0;
         float x_max = -TOP_CLAMP;
         for(int i = 0; i < 8; ++i) {
           const auto& tmp = node->value_[i];
-          mean += tmp.x;
           if (tmp.x_max > x_max)
             x_max = tmp.x_max;
         }
@@ -205,7 +203,7 @@ namespace se {
         const unsigned int id = se::child_id(node->code_,
                                              se::keyops::level(node->code_), max_level);
         auto& data = node->parent()->value_[id];
-        data.x = mean / 8;
+        data.x = x_max;
         data.x_max = x_max;
       }
 
@@ -336,6 +334,7 @@ namespace se {
             auto data = b->data(b->coordinates(), se::math::log2_const(se::VoxelBlock<MultiresOFusion>::side));
             auto& parent_data = b->parent()->value_[id];
             parent_data = data;
+            parent_data.x = parent_data.x_max;
           }
         }
 
