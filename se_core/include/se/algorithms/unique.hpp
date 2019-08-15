@@ -61,6 +61,20 @@ namespace algorithms {
     }
 
   template <typename KeyT>
+  inline int filter_descendant(KeyT* keys, int num_keys, const int max_depth) {
+    int e = 0;
+    for (int i = 0; i < num_keys; ++i){
+      if(descendant(keys[i], keys[e], max_depth)){
+        // do nothing
+      } else {
+        /* end does not advance but previous entry is overwritten */
+        keys[++e] = keys[i];
+      }
+    }
+    return e + 1;
+  }
+
+  template <typename KeyT>
   inline int filter_level(const KeyT* in, KeyT* out, int num_keys, const int level) {
     int e = 0;
     for (int i = 0; i < num_keys; ++i){
