@@ -34,6 +34,104 @@
 #include <se/utils/math_utils.h>
 #include <se/image/image.hpp>
 
+std::pair<int, int> bounds(float val[8]) {
+  int min = val[0];
+  int max = val[0];
+  for (int i = 1; i < 8; i++) {
+    if (min > val[i]) {
+      min = val[i];
+      continue;
+    } else if (max < val[i])
+      max = val[i];
+  }
+  return std::make_pair(min, max);
+}
+
+se::Image<int> depth_mask(const float* depthmap, Eigen::Vector2i image_size, int downsample) {
+  se::Image<int> mask = se::Image<int>(image_size.x() / downsample,
+                                       image_size.y() / downsample);
+#pragma omp parallel for shared(mask)
+  for (int y = 0; y < mask.height(); y++) {
+    for (int x = 0; x < mask.width(); x++) {
+      Eigen::Vector2i pixel = Eigen::Vector2i(x, y);
+      const Eigen::Vector2i corner_pixel = downsample * pixel;
+      bool data_complete = true;
+      for (int i = 0; i < downsample; ++i) {
+        for (int j = 0; j < downsample; ++j) {
+          Eigen::Vector2i curr = corner_pixel + Eigen::Vector2i(j, i);
+          float curr_value = depthmap[curr.x() + curr.y() * image_size.x()];
+          if (curr_value == 0) {
+            data_complete = false;
+          }
+        }
+      }
+      mask[x + y * mask.width()] = data_complete;
+    }
+  }
+  return mask;
+}
+
+bool reprojectIntoImage(const Eigen::Matrix4f&  Twc,
+                        const Eigen::Matrix4f&  K,
+                        const Eigen::Vector2i&  image_size,
+                        const se::Image<int>&   mask,
+                        const int               downsample,
+                        const Eigen::Vector3i&  world_node,
+                        const float&            voxel_dim,
+                        const int&              node_size) {
+
+  bool is_inside = true;
+  const Eigen::Vector3f tcw = -Twc.topRightCorner<3,1>();
+  const Eigen::Matrix3f Rcw = (Twc.topLeftCorner<3,3>()).inverse();
+
+  const Eigen::Vector3f delta_m_c = Rcw * Eigen::Vector3f::Constant(voxel_dim * node_size);
+  const Eigen::Vector3f delta_p = K.topLeftCorner<3,3>() * delta_m_c;
+  Eigen::Vector3f base_m_c = Rcw * (voxel_dim * world_node.cast<float>() + tcw);
+  Eigen::Vector3f base_p = K.topLeftCorner<3,3>() * base_m_c;
+
+  float corners_p_x[8];
+  float corners_p_y[8];
+
+#pragma omp simd
+  for (int i = 0; i < 8; ++i) {
+    const Eigen::Vector3i dir = Eigen::Vector3i((i & 1) > 0, (i & 2) > 0, (i & 4) > 0);
+    const Eigen::Vector3f corner_m_c = base_m_c + dir.cast<float>().cwiseProduct(delta_m_c);
+    const Eigen::Vector3f corner_homo = base_p + dir.cast<float>().cwiseProduct(delta_p);
+
+    if (corner_m_c(2) < 0.0001f) {
+      is_inside = false;
+      continue;
+    }
+    const float inverse_depth = 1.f / corner_homo(2);
+    const Eigen::Vector2f corner_p = Eigen::Vector2f(
+        corner_homo(0) * inverse_depth + 0.5f,
+        corner_homo(1) * inverse_depth + 0.5f);
+    corners_p_x[i] = corner_p.x();
+    corners_p_y[i] = corner_p.y();
+    if (corner_p(0) < 0.5f || corner_p(0) > image_size.x() - 1.5f ||
+        corner_p(1) < 0.5f || corner_p(1) > image_size.y() - 1.5f) {
+      is_inside = false;
+    }
+  }
+
+  std::pair<int, int> x_bounds = bounds(corners_p_x);
+  std::pair<int, int> y_bounds = bounds(corners_p_y);
+
+  bool node_valid = is_inside;
+  if (is_inside && node_size > 8) {
+#pragma omp simd
+    for (int y = y_bounds.first / downsample; y <= y_bounds.second / downsample; y ++) {
+      for (int x = x_bounds.first / downsample; x <= x_bounds.second / downsample; x++) {
+        if (mask.data()[x + y * mask.width()] == 0) {
+          node_valid = false;
+        }
+      }
+    }
+  }
+
+  return node_valid;
+}
+
 template <typename FieldType,
     template <typename> class OctreeT,
     typename HashType>
@@ -665,103 +763,5 @@ size_t buildParentOctantList(HashType*               parent_list,
     }
   }
   return (size_t) parent_count >= reserved_keys ? reserved_keys : (size_t) parent_count;
-}
-
-std::pair<int, int> bounds(float val[8]) {
-  int min = val[0];
-  int max = val[0];
-  for (int i = 1; i < 8; i++) {
-    if (min > val[i]) {
-      min = val[i];
-      continue;
-    } else if (max < val[i])
-      max = val[i];
-  }
-  return std::make_pair(min, max);
-}
-
-se::Image<int> depth_mask(const float* depthmap, Eigen::Vector2i image_size, int downsample) {
-  se::Image<int> mask = se::Image<int>(image_size.x() / downsample,
-                                       image_size.y() / downsample);
-#pragma omp parallel for shared(mask)
-  for (int y = 0; y < mask.height(); y++) {
-    for (int x = 0; x < mask.width(); x++) {
-      Eigen::Vector2i pixel = Eigen::Vector2i(x, y);
-      const Eigen::Vector2i corner_pixel = downsample * pixel;
-      bool data_complete = true;
-      for (int i = 0; i < downsample; ++i) {
-        for (int j = 0; j < downsample; ++j) {
-          Eigen::Vector2i curr = corner_pixel + Eigen::Vector2i(j, i);
-          float curr_value = depthmap[curr.x() + curr.y() * image_size.x()];
-          if (curr_value == 0) {
-            data_complete = false;
-          }
-        }
-      }
-      mask[x + y * mask.width()] = data_complete;
-    }
-  }
-  return mask;
-}
-
-bool reprojectIntoImage(const Eigen::Matrix4f&  Twc,
-                        const Eigen::Matrix4f&  K,
-                        const Eigen::Vector2i&  image_size,
-                        const se::Image<int>&   mask,
-                        const int               downsample,
-                        const Eigen::Vector3i&  world_node,
-                        const float&            voxel_dim,
-                        const int&              node_size) {
-
-  bool is_inside = true;
-  const Eigen::Vector3f tcw = -Twc.topRightCorner<3,1>();
-  const Eigen::Matrix3f Rcw = (Twc.topLeftCorner<3,3>()).inverse();
-
-  const Eigen::Vector3f delta_m_c = Rcw * Eigen::Vector3f::Constant(voxel_dim * node_size);
-  const Eigen::Vector3f delta_p = K.topLeftCorner<3,3>() * delta_m_c;
-  Eigen::Vector3f base_m_c = Rcw * (voxel_dim * world_node.cast<float>() + tcw);
-  Eigen::Vector3f base_p = K.topLeftCorner<3,3>() * base_m_c;
-
-  float corners_p_x[8];
-  float corners_p_y[8];
-
-#pragma omp simd
-  for (int i = 0; i < 8; ++i) {
-    const Eigen::Vector3i dir = Eigen::Vector3i((i & 1) > 0, (i & 2) > 0, (i & 4) > 0);
-    const Eigen::Vector3f corner_m_c = base_m_c + dir.cast<float>().cwiseProduct(delta_m_c);
-    const Eigen::Vector3f corner_homo = base_p + dir.cast<float>().cwiseProduct(delta_p);
-
-    if (corner_m_c(2) < 0.0001f) {
-      is_inside = false;
-      continue;
-    }
-    const float inverse_depth = 1.f / corner_homo(2);
-    const Eigen::Vector2f corner_p = Eigen::Vector2f(
-        corner_homo(0) * inverse_depth + 0.5f,
-        corner_homo(1) * inverse_depth + 0.5f);
-    corners_p_x[i] = corner_p.x();
-    corners_p_y[i] = corner_p.y();
-    if (corner_p(0) < 0.5f || corner_p(0) > image_size.x() - 1.5f ||
-        corner_p(1) < 0.5f || corner_p(1) > image_size.y() - 1.5f) {
-      is_inside = false;
-    }
-  }
-
-  std::pair<int, int> x_bounds = bounds(corners_p_x);
-  std::pair<int, int> y_bounds = bounds(corners_p_y);
-
-  bool node_valid = is_inside;
-  if (is_inside && node_size > 8) {
-#pragma omp simd
-    for (int y = y_bounds.first / downsample; y <= y_bounds.second / downsample; y ++) {
-      for (int x = x_bounds.first / downsample; x <= x_bounds.second / downsample; x++) {
-        if (mask.data()[x + y * mask.width()] == 0) {
-          node_valid = false;
-        }
-      }
-    }
-  }
-
-  return node_valid;
 }
 #endif // MULTIRES_BFUSION_ALLOC_H
