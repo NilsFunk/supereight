@@ -148,8 +148,7 @@ void buildDenseOctantList(HashType*               allocation_list,
                           const float             voxel_dim,
                           const float             band,
                           const int               doubling_ratio,
-                          int                     max_allocation_size,
-                          int                     frame) {
+                          int                     max_allocation_size) {
   // Create inverse voxel dimension, camera matrix and projection matrix
   const float inv_voxel_dim = 1.f/voxel_dim; // inv_voxel_dim := [m] to [voxel]; voxel_dim := [voxel] to [m]
   Eigen::Matrix4f inv_K = K.inverse();

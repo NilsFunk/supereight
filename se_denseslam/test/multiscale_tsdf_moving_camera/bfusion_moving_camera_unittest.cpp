@@ -396,7 +396,7 @@ TEST_F(MultiresOFusionMovingCameraTest, SphereRotation) {
 
     buildDenseOctantList(allocation_list_.data(), free_space_list_.data(), allocated, free_space,
                          allocation_list_.capacity(), oct_, camera_pose, camera_parameter_.K(), depth_image_.data(),
-                         camera_parameter_.imageSize(), voxel_size_, 6 * mu_, 2, 4*OctreeT::blockSide, frame);
+                         camera_parameter_.imageSize(), voxel_size_, 6 * mu_, 2, 4*OctreeT::blockSide);
 
     oct_.allocate(allocation_list_.data(), allocated);
     oct_.update_free_space(free_space_list_.data(), free_space,frame);
