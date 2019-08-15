@@ -148,13 +148,6 @@ class VoxelBlock: public Node<T> {
 
     value_type * getBlockRawPtr(){ return voxel_block_; }
     static constexpr int size(){ return sizeof(VoxelBlock<T>); }
-    
-  private:
-    VoxelBlock(const VoxelBlock&) = delete;
-    Eigen::Vector3i coordinates_;
-    int current_scale_;
-    int min_scale_;
-
     static constexpr size_t compute_buff_size() {
       size_t size = 0;
       unsigned int s = side;
@@ -164,7 +157,14 @@ class VoxelBlock: public Node<T> {
       }
       return size;
     }
-    static constexpr size_t buff_size = compute_buff_size();
+  static constexpr size_t buff_size = compute_buff_size();
+    
+  private:
+    VoxelBlock(const VoxelBlock&) = delete;
+    Eigen::Vector3i coordinates_;
+    int current_scale_;
+    int min_scale_;
+
     value_type voxel_block_[buff_size]; // Brick of data.
 
     friend std::ofstream& internal::serialise <> (std::ofstream& out, 
