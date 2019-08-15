@@ -79,6 +79,7 @@ public:
   typedef typename traits_type::value_type value_type;
   value_type empty() const { return traits_type::empty(); }
   value_type init_val() const { return traits_type::initValue(); }
+  float free_thresh() const { return traits_type::freeThresh(); }
 
   // Compile-time constant expressions
   // # of voxels per side in a voxel block
