@@ -19,14 +19,14 @@ target_link_libraries(${UNIT_TEST_NAME} ${GTEST_BOTH_LIBRARIES} pthread)
 GTEST_ADD_TESTS(${UNIT_TEST_NAME} "" AUTO)
 
 set(UNIT_TEST_NAME ${PROJECT_TEST_NAME}-memory-pool-unittest)
-add_executable(${UNIT_TEST_NAME} memory_pool_unittest.cpp)
+add_executable(${UNIT_TEST_NAME} memory_pool_pages_unittest.cpp)
 target_include_directories(${UNIT_TEST_NAME} PUBLIC ${GTEST_INCLUDE_DIRS} ../../../se_shared)
 target_link_libraries(${UNIT_TEST_NAME} ${GTEST_BOTH_LIBRARIES} pthread)
 
 GTEST_ADD_TESTS(${UNIT_TEST_NAME} "" AUTO)
 
 set(UNIT_TEST_NAME ${PROJECT_TEST_NAME}-memory-pool-2-unittest)
-add_executable(${UNIT_TEST_NAME} memory_pool_2_unittest.cpp)
+add_executable(${UNIT_TEST_NAME} memory_pool_unittest.cpp)
 target_include_directories(${UNIT_TEST_NAME} PUBLIC ${GTEST_INCLUDE_DIRS} ../../../se_shared)
 target_link_libraries(${UNIT_TEST_NAME} ${GTEST_BOTH_LIBRARIES} pthread)
 

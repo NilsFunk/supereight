@@ -29,7 +29,7 @@
  */
 
 
-#include "utils/memory_pool_2.hpp"
+#include "utils/memory_pool_pages.hpp"
 #include "gtest/gtest.h"
 
 
@@ -39,7 +39,7 @@ typedef float testT;
 
 
 // Create a MemoryPool and set the values of some of its elements.
-class MemoryPool2Test : public ::testing::Test {
+class MemoryPoolTest : public ::testing::Test {
   protected:
     virtual void SetUp() {
       // Reserve memory for the pool.
@@ -52,7 +52,7 @@ class MemoryPool2Test : public ::testing::Test {
       }
     }
 
-    se::MemoryPool2<testT> pool_;
+    se::MemoryPool<testT> pool_;
     const float value_increment_ = 1.f;
     // The page size is currently hardcoded to 1024 elements.
     const size_t num_elements_ = 1026;
@@ -63,36 +63,12 @@ class MemoryPool2Test : public ::testing::Test {
 
 
 // Test that the MemoryPool contains the expected number of elements.
-TEST_F(MemoryPool2Test, Init) {
+TEST_F(MemoryPoolTest, Init) {
   EXPECT_EQ(pool_.size(), num_elements_);
 
   for (size_t i = 0; i < pool_.size(); ++i) {
     testT* e = pool_[i];
     EXPECT_EQ(*e, i * value_increment_);
-  }
-}
-
-
-
-// Erase an element from the memory pool and test that it was successfully
-// overwritten.
-TEST_F(MemoryPool2Test, Erase) {
-  // Erase an element from the end of the memory pool.
-  pool_.erase(pool_.size() - 1);
-  EXPECT_EQ(pool_.size(), num_elements_ - 1);
-  // Test the values of the remaining elements.
-  for (size_t i = 0; i < pool_.size(); ++i) {
-    testT* e = pool_[i];
-    EXPECT_EQ(*e, i * value_increment_);
-  }
-
-  // Erase an element from the beginning of the memory pool.
-  pool_.erase(0);
-  EXPECT_EQ(pool_.size(), num_elements_ - 2);
-  // Test the values of the remaining elements.
-  for (size_t i = 0; i < pool_.size(); ++i) {
-    testT* e = pool_[i];
-    EXPECT_EQ(*e, (i + 1) * value_increment_);
   }
 }
 

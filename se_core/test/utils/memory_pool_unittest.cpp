@@ -72,3 +72,27 @@ TEST_F(MemoryPoolTest, Init) {
   }
 }
 
+
+
+// Erase an element from the memory pool and test that it was successfully
+// overwritten.
+TEST_F(MemoryPoolTest, Erase) {
+  // Erase an element from the end of the memory pool.
+  pool_.erase(pool_.size() - 1);
+  EXPECT_EQ(pool_.size(), num_elements_ - 1);
+  // Test the values of the remaining elements.
+  for (size_t i = 0; i < pool_.size(); ++i) {
+    testT* e = pool_[i];
+    EXPECT_EQ(*e, i * value_increment_);
+  }
+
+  // Erase an element from the beginning of the memory pool.
+  pool_.erase(0);
+  EXPECT_EQ(pool_.size(), num_elements_ - 2);
+  // Test the values of the remaining elements.
+  for (size_t i = 0; i < pool_.size(); ++i) {
+    testT* e = pool_[i];
+    EXPECT_EQ(*e, (i + 1) * value_increment_);
+  }
+}
+

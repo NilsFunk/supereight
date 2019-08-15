@@ -1,6 +1,6 @@
 /*
 
-Copyright 2016 Emanuele Vespa, Imperial College London 
+Copyright 2016 Emanuele Vespa, Imperial College London
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -25,7 +25,7 @@ DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
 SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
@@ -36,29 +36,25 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <vector>
 
 namespace se {
 /*! \brief Manage the memory allocated for Octree nodes.
  *
- * \note The memory is managed using pages. A single page is an array of
- * BlockType with MemoryPool::pagesize_ elements. Then an std::vector of pages
- * is used to store multiple pages.
+ * \note The memory is managed using a vector of shared pointers. This allows
+ * safely erasing elements.
  */
 template <typename BlockType>
   class MemoryPool {
     public:
       MemoryPool(){
         current_block_ = 0;
-        num_pages_ = 0;
         reserved_ = 0;
       }
 
       ~MemoryPool(){
-        for(auto&& i : pages_){
-          delete [] i;
-        }
       }
 
       /*! \brief The number of BlockType elements stored in the MemoryPool.
@@ -68,20 +64,21 @@ template <typename BlockType>
       /*! \brief Return a pointer to the BlockType element with index i.
        */
       BlockType* operator[](const size_t i) const {
-        const int page_idx = i / pagesize_;
-        const int ptr_idx = i % pagesize_;
-        return pages_[page_idx] + (ptr_idx);
+        return data_[i].get();
       }
 
       /*! \brief Reserve memory for an additional n BlockType elements.
        */
-      void reserve(const size_t n){
+      void reserve(const size_t n) {
         bool requires_realloc = (current_block_ + n) > reserved_;
-        if(requires_realloc) expand(n);
+        if (requires_realloc)
+          expand(n);
       }
 
       /*! \brief Add a BlockType element to the MemoryPool and return a pointer
        * to it.
+       *
+       * \note This function should be thread-safe.
        *
        * \warning No bounds checking is performed. The MemoryPool must have
        * enough memory allocated using MemoryPool::reserve to accomodate the
@@ -90,27 +87,43 @@ template <typename BlockType>
       BlockType * acquire_block(){
         // Fetch-add returns the value before increment
         int current = current_block_.fetch_add(1);
-        const int page_idx = current / pagesize_;
-        const int ptr_idx = current % pagesize_;
-        BlockType * ptr = pages_[page_idx] + (ptr_idx);
+        BlockType * ptr = data_[current].get();
         return ptr;
       }
 
-    private:
-      size_t reserved_;
-      std::atomic<unsigned int> current_block_;
-      const int pagesize_ = 1024; // # of blocks per page
-      int num_pages_;
-      std::vector<BlockType *> pages_;
+      /*! \brief Erase the BlockType element at index i.
+       *
+       * \note This function should be thread-safe.
+       *
+       * \warning No bounds checking is performed. Ensure i is smaller than
+       * MemoryPool::size.
+       */
+      void erase(const size_t i) {
+        // Create a mutex local to the function. The unique lock is an object
+        // that guarantees the mutex will be unlocked on destruction (e.g. when
+        // the function exits or after an exception is raised).
+        // This code should be thread safe in C++11.
+        // https://stackoverflow.com/questions/14106653/are-function-local-static-mutexes-thread-safe
+        static std::mutex mtx;
+        std::unique_lock<std::mutex> lock(mtx);
 
-      void expand(const size_t n){
+        // Decrement the number of elements and erase the requested element.
+        current_block_.fetch_sub(1);
+        reserved_.fetch_sub(1);
+        data_.erase(data_.begin() + i);
+      }
+
+    private:
+      std::atomic<unsigned int> reserved_;
+      std::atomic<unsigned int> current_block_;
+      std::vector<std::shared_ptr<BlockType> > data_;
+
+      void expand(const size_t n) {
 
         // std::cout << "Allocating " << n << " blocks" << std::endl;
-        const int new_pages = std::ceil(n/pagesize_);
-        for(int p = 0; p <= new_pages; ++p){
-          pages_.push_back(new BlockType[pagesize_]);
-          ++num_pages_;
-          reserved_ += pagesize_;
+        for (size_t p = 0; p < n; ++p) {
+          data_.push_back(std::make_shared<BlockType>());
+          reserved_.fetch_add(1);
         }
         // std::cout << "Reserved " << reserved_ << " blocks" << std::endl;
       }
