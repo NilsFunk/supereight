@@ -276,7 +276,7 @@ namespace se {
                                               2 * voxel_size, 0.05f);
                 float sample = H(diff/sigma, pos.z());
                 if (sample == 0.5f)
-                  return;
+                  continue;
                 sample = se::math::clamp(sample, 0.03f, 0.97f);
 
                 auto data = block->data(pix, scale);
