@@ -48,7 +48,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <queue>
 #include <unordered_set>
 #include "node.hpp"
-#include "utils/memory_pool.hpp"
+#include "utils/memory_pool_2.hpp"
 #include "algorithms/unique.hpp"
 #include "algorithms/filter.hpp"
 #include "geometry/aabb_collision.hpp"
