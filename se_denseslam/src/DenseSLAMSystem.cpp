@@ -55,6 +55,7 @@
 #include "multires_kfusion/mapping_impl.hpp"
 #include "multires_kfusion/rendering_impl.hpp"
 #include "multires_bfusion/alloc_impl.hpp"
+#include "multires_bfusion/mapping_impl.hpp"
 #include "multires_bfusion/rendering_impl.hpp"
 
 
@@ -283,7 +284,8 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
     }
 
     volume_._map_index->allocate(allocation_list_.data(), allocated);
-    volume_._map_index->allocate_free_space(free_space_list_.data(), free_space_allocated);
+    if(std::is_same<FieldType, MultiresOFusion>::value)
+      volume_._map_index->allocate_free_space(free_space_list_.data(), free_space_allocated);
 
     std::string version;
     if(std::is_same<FieldType, SDF>::value) {
@@ -313,17 +315,19 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
           volume_._map_index->_offset, float_depth_, mu, maxweight, frame);
       version = "multires";
     } else if(std::is_same<FieldType, MultiresOFusion>::value) {
-      float timestamp = frame;
-      struct bfusion_update funct(float_depth_.data(),
-                                  framesize,
-                                  mu, timestamp, voxelsize);
-
-      se::functor::projective_map(*volume_._map_index,
-                                  volume_._map_index->_offset,
-                                  Tcw,
-                                  K,
-                                  Eigen::Vector2i(computation_size_.x(), computation_size_.y()),
-                                  funct);
+//      float timestamp = frame;
+//      struct bfusion_update funct(float_depth_.data(),
+//                                  framesize,
+//                                  mu, timestamp, voxelsize);
+//
+//      se::functor::projective_map(*volume_._map_index,
+//                                  volume_._map_index->_offset,
+//                                  Tcw,
+//                                  K,
+//                                  Eigen::Vector2i(computation_size_.x(), computation_size_.y()),
+//                                  funct);
+      se::multires::ofusion::integrate(*volume_._map_index, Tcw, K, voxelsize, volume_._map_index->_offset,
+                                       float_depth_, mu, frame);
       version = "multires-ofusion";
     }
 

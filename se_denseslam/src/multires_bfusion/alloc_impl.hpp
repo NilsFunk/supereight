@@ -284,6 +284,8 @@ void buildDenseOctantList(HashType*               allocation_list,
               if(free_space_count <= reserved_keys) {
                 unsigned const idx = free_space_count++;
                 free_space_list[idx] = key;
+              } else {
+                std::cout << "TOOOOO MANY" << std::endl;
               }
             }
             else if(allocation_count <= reserved_keys) {

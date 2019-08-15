@@ -36,7 +36,7 @@
 #include <se/functors/projective_functor.hpp>
 #include <se/constant_parameters.h>
 #include <se/image/image.hpp>
-#include "bspline_lookup.cc"
+#include "bspline_lookup2.cc"
 #include <se/octree.hpp>
 #include <se/volume_traits.hpp>
 #include <se/algorithms/filter.hpp>
@@ -107,8 +107,8 @@ namespace se {
         float value = 0.f;
         constexpr float inverseRange = 1/6.f;
         if (t >= -3.0f && t <= 3.0f) {
-          unsigned int idx = ((t + 3.f)*inverseRange)*(bspline_num_samples - 1) + 0.5f;
-          return bspline_lookup[idx];
+          unsigned int idx = ((t + 3.f)*inverseRange)*(bspline_num_samples2 - 1) + 0.5f;
+          return bspline_lookup2[idx];
         } else if(t > 3) {
           value = 1.f;
         }
