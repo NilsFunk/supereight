@@ -230,8 +230,10 @@ public:
    */
   bool allocate(key_t *keys, int num_elem);
 
-  /*! \brief allocate a set of voxel blocks via their positional key
-   * \param keys collection of voxel block keys to be allocated (i.e. their
+  /*! \brief allocate a ancestors of a set of nodes via their positional key that are known to be free.
+   * Abort allocation as soon as parent value is free. Set last allocated node as active (i.e. key level is reached or
+   * early abort).
+   * \param keys collection of voxelblocks and node keys to be allocated (i.e. their
    * morton number)
    * \param number of keys in the keys array
    */
@@ -290,7 +292,8 @@ private:
   // Pre: levels above target_level must have been already allocated
   bool allocate_level(key_t * keys, int num_tasks, int target_level);
 
-  // Parallel allocation of a given tree level for a set of input keys if the parents max value in not free
+  // Parallel allocation of a given tree level for a set of input keys.
+  // Aborts if parent level is free. Activates node at key level or node at abortion.
   bool allocate_free_space_level(key_t * keys, int num_tasks, int target_level);
 
   // Parallel full child allocation of a given tree level for a set of input parent keys.

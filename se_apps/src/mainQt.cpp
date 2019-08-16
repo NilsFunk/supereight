@@ -296,6 +296,8 @@ int processAll(DepthReader *reader, bool processFrame, bool renderImages,
 		timings[6] = std::chrono::steady_clock::now();
 	}
 
+	pipeline->compression();
+
   if (frame >= 2 && frame <= 75) {
     std::stringstream volume_render_filename;
     volume_render_filename << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/living-room-" << frame << ".png";

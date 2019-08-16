@@ -284,6 +284,11 @@ class DenseSLAMSystem {
     void renderDepth(unsigned char*         out,
                      const Eigen::Vector2i& outputSize);
 
+    /**
+    * Compress octree by removing all nodes that are full free.
+    */
+    void compression();
+
     //
     // Getters
     //

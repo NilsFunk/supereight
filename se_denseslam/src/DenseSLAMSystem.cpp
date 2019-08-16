@@ -315,17 +315,6 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
           volume_._map_index->_offset, float_depth_, mu, maxweight, frame);
       version = "multires";
     } else if(std::is_same<FieldType, MultiresOFusion>::value) {
-//      float timestamp = frame;
-//      struct bfusion_update funct(float_depth_.data(),
-//                                  framesize,
-//                                  mu, timestamp, voxelsize);
-//
-//      se::functor::projective_map(*volume_._map_index,
-//                                  volume_._map_index->_offset,
-//                                  Tcw,
-//                                  K,
-//                                  Eigen::Vector2i(computation_size_.x(), computation_size_.y()),
-//                                  funct);
       se::multires::ofusion::integrate(*volume_._map_index, Tcw, K, voxelsize, volume_._map_index->_offset,
                                        float_depth_, mu, frame);
       version = "multires-ofusion";
@@ -394,9 +383,14 @@ void DenseSLAMSystem::renderDepth(unsigned char* out,
         renderDepthKernel(out, float_depth_.data(), outputSize, nearPlane, farPlane);
 }
 
+void DenseSLAMSystem::compression() {
+  if(std::is_same<FieldType, MultiresOFusion>::value)
+    se::multires::ofusion::compress(*volume_._map_index);
+}
+
 void DenseSLAMSystem::dump_mesh(const std::string filename){
 
-  se::functor::internal::parallel_for_each(volume_._map_index->getBlockBuffer(), 
+  se::functor::internal::parallel_for_each(volume_._map_index->getBlockBuffer(),
       [](auto block) { 
         if(std::is_same<FieldType, MultiresSDF>::value) {
           block->current_scale(block->min_scale());

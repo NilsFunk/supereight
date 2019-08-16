@@ -366,17 +366,20 @@ TEST_F(MultiresOFusionMovingCameraTest, SphereRotation) {
     oct_.allocate(allocation_list_.data(), allocated);
     oct_.allocate_free_space(free_space_list_.data(), free_space);
 
+
     const Sophus::SE3f&    Tcw = Sophus::SE3f(camera_pose).inverse();
     se::multires::ofusion::integrate(oct_, Tcw, camera_parameter_.K(), voxel_size_, offset_,
                                       depth_image_, mu_, frame);
 
-      std::stringstream f_ply;
+    se::multires::ofusion::compress(oct_);
 
-    f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-" << frame << ".ply";
+    std::stringstream f_ply;
+
+    f_ply << "./out/sphere-circulation-frame-" << frame << ".ply";
     se::print_octree(f_ply.str().c_str(), oct_);
 
     std::stringstream f_vtk;
-    f_vtk << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/sphere-circulation-frame-"  << frame << ".vtk";
+    f_vtk << "./out/sphere-circulation-frame-"  << frame << ".vtk";
     save3DSlice(oct_,
                 Eigen::Vector3i(0, 0, oct_.size()/2),
                 Eigen::Vector3i(oct_.size(), oct_.size(), oct_.size()/2 + 1),

@@ -96,6 +96,7 @@ namespace se {
           return depth(int(proj.x() + 0.5f), int(proj.y() + 0.5f));
         }
       }
+
       /**
        * Compute the value of the q_cdf spline using a lookup table. This implements
        * equation (7) from \cite VespaRAL18.
@@ -152,9 +153,10 @@ namespace se {
       }
 
       /**
-       * Update the maximum occupuancy of a voxel block starting scale 0 to voxel block scale
+       * Up-propagate the mean and maximum occupuancy of a voxel block starting scale 0 to voxel block scale
        *
        * \param[in] block VoxelBlock to be updated
+       * \param[in] scale Scale to start the up-progation from
       */
       template <typename T>
       void propagate_up(se::VoxelBlock<T>* block, const int scale) {
@@ -167,7 +169,7 @@ namespace se {
               for(int x = 0; x < side; x += stride) {
                 const Eigen::Vector3i curr = base + Eigen::Vector3i(x, y, z);
                 float mean = 0;
-                float x_max = -TOP_CLAMP;
+                float x_max = BOTTOM_CLAMP;
                 for(int k = 0; k < stride; k += stride/2)
                   for(int j = 0; j < stride; j += stride/2 )
                     for(int i = 0; i < stride; i += stride/2) {
@@ -184,6 +186,14 @@ namespace se {
         }
       }
 
+      /**
+       * Up-propagate the maximum occupuancy of a node.
+       * Note only the x and x_max are equivalent at node level.
+       *
+       * \param[in] node      Node to be up-propagated
+       * \param[in] max_level Max level of the tree
+       * \param[in] timestamp Current frame number
+      */
       template <typename T>
       void propagate_up(se::Node<T>* node, const int max_level,
                         const unsigned timestamp) {
@@ -242,6 +252,7 @@ namespace se {
           const int scale = 0;
           const int stride = 1 << scale;
           bool visible = false;
+          block->current_scale(scale);
 
           const Eigen::Vector3f delta = Tcw.rotationMatrix() * Eigen::Vector3f(voxel_size, 0, 0);
           const Eigen::Vector3f cameraDelta = K.topLeftCorner<3, 3>() * delta;
@@ -281,6 +292,8 @@ namespace se {
                 auto data = block->data(pix, scale);
 
                 // Update the occupancy probability
+
+                // NOTE: Time dependency is deactivated
 //                const double delta_t = (double)(frame - data.y) / 30;
 //                data.x = applyWindow(data.x, SURF_BOUNDARY, delta_t, CAPITAL_T);
                 data.x = se::math::clamp(updateLogs(data.x, sample), BOTTOM_CLAMP, TOP_CLAMP);
@@ -305,29 +318,36 @@ namespace se {
       template <>void integrate(se::Octree<MultiresOFusion>& map, const Sophus::SE3f& Tcw, const
       Eigen::Matrix4f& K, float voxelsize, const Eigen::Vector3f& offset, const
                                 se::Image<float>& depth, float mu, const unsigned frame) {
-        std::vector<se::Node<MultiresOFusion>*> active_node_list;
-        auto& nodes_array = map.getNodesBuffer();
-        auto is_active_node_predicate = [](const se::Node<MultiresOFusion>* n) {
+
+        // Filter all active nodes from the node buffer
+        // Active nodes are set active during allocation list creation and allocation
+        std::vector<se::Node<MultiresOFusion> *> active_node_list;
+        auto &nodes_array = map.getNodesBuffer();
+        auto is_active_node_predicate = [](const se::Node<MultiresOFusion> *n) {
           return n->active();
         };
         algorithms::filter(active_node_list, nodes_array, is_active_node_predicate);
 
-        std::deque<Node<MultiresOFusion>*> active_node_queue;
-        for(const auto& n : active_node_list)
+        // Populate queue with active nodes
+        std::deque<Node<MultiresOFusion> *> active_node_queue;
+        for (const auto &n : active_node_list)
           active_node_queue.push_back(n);
 
-        while(!active_node_queue.empty()) {
-          Node<MultiresOFusion>* n = active_node_queue.front();
+        // Update nodes with maximum "free" update per integration
+        // log2(0.03/(1-0.03) = -5.0149
+        // Only set child at lowest level as active to save time during up propagation
+        while (!active_node_queue.empty()) {
+          Node<MultiresOFusion> *n = active_node_queue.front();
           active_node_queue.pop_front();
           n->active(false);
-          for(int i = 0; i < 8; ++i) {
+          for (int i = 0; i < 8; ++i) {
             if (n->child(i) == NULL) {
-              auto& data = n->value_[i];
+              auto &data = n->value_[i];
               data.x += -5.015;
               data.x = std::max(data.x, voxel_traits<MultiresOFusion>::freeThresh());
               data.x_max = data.x;
               data.y = frame;
-            } else if (!n->child(i)->isLeaf()){
+            } else if (!n->child(i)->isLeaf()) {
               active_node_queue.push_back(n->child(i));
             }
           }
@@ -336,100 +356,122 @@ namespace se {
           }
         }
 
-        // Filter visible blocks
+        // Filter active blocks / blocks in frustum from the block buffer
         using namespace std::placeholders;
-        std::vector<se::VoxelBlock<MultiresOFusion>*> active_list;
-        auto& block_array = map.getBlockBuffer();
-        auto is_active_predicate = [](const se::VoxelBlock<MultiresOFusion>* b) {
+        std::vector<se::VoxelBlock<MultiresOFusion> *> active_list;
+        auto &block_array = map.getBlockBuffer();
+        auto is_active_predicate = [](const se::VoxelBlock<MultiresOFusion> *b) {
           return b->active();
         };
         const Eigen::Vector2i framesize(depth.width(), depth.height());
-        const Eigen::Matrix4f Pcw = K*Tcw.matrix();
+        const Eigen::Matrix4f Pcw = K * Tcw.matrix();
         auto in_frustum_predicate =
             std::bind(se::algorithms::in_frustum<se::VoxelBlock<MultiresOFusion>>, _1,
                       voxelsize, Pcw, framesize);
         se::algorithms::filter(active_list, block_array, is_active_predicate,
                                in_frustum_predicate);
 
+        // Update voxel block values
         struct multires_block_update funct(map, Tcw, K, voxelsize,
                                            offset, depth, frame, mu);
         se::functor::internal::parallel_for_each(active_list, funct);
 
-        std::deque<Node<MultiresOFusion>*> prop_list;
+        std::deque<Node<MultiresOFusion> *> prop_list;
         std::mutex deque_mutex;
 
-        for(const auto& b : active_list) {
-          if(b->parent()) {
+        // Up propagate voxel block max values to first node level
+        for (const auto &b : active_list) {
+          if (b->parent()) {
             prop_list.push_back(b->parent());
             const unsigned int id = se::child_id(b->code_,
                                                  se::keyops::level(b->code_), map.max_level());
             auto data = b->data(b->coordinates(), se::math::log2_const(se::VoxelBlock<MultiresOFusion>::side));
-            auto& parent_data = b->parent()->value_[id];
+            auto &parent_data = b->parent()->value_[id];
             parent_data = data;
             parent_data.x = parent_data.x_max;
           }
         }
 
-        while(!prop_list.empty()) {
-          Node<MultiresOFusion>* n = prop_list.front();
+        // Up propagate node max values to root level
+        while (!prop_list.empty()) {
+          Node<MultiresOFusion> *n = prop_list.front();
           prop_list.pop_front();
-          if(n->timestamp() == frame) continue;
+          if (n->timestamp() == frame) continue;
           propagate_up(n, map.max_level(), frame);
-          if(n->parent()) prop_list.push_back(n->parent());
+          if (n->parent()) prop_list.push_back(n->parent());
         }
 
-        active_list.clear();
+        // Filter updated active blocks
+        active_node_list.clear();
         algorithms::filter(active_node_list, nodes_array, is_active_node_predicate);
-        for(const auto& n : active_node_list) {
+
+        // Add active blocks to propagation list and deactive nodes
+        for (const auto &n : active_node_list) {
           prop_list.push_back(n);
           n->active(false);
         }
 
-        while(!prop_list.empty()) {
-          Node<MultiresOFusion>* n = prop_list.front();
+        // Up propagate max node values to root level
+        while (!prop_list.empty()) {
+          Node<MultiresOFusion> *n = prop_list.front();
           prop_list.pop_front();
           propagate_up(n, map.max_level(), frame);
-          if(n->parent()) prop_list.push_back(n->parent());
+          if (n->parent()) prop_list.push_back(n->parent());
         }
+      }
 
-        int count = 0;
+      /**
+       * Compress octree by removing all nodes that are full free.
+      */
+      template <typename T>
+      void compress(se::Octree<T>&) {
+      }
+
+      template <>void compress(se::Octree<MultiresOFusion>& map) {
+        // Remove all blocks that are fully free.
+        int block_count = 0;
+        auto &block_array = map.getBlockBuffer();
         int num_blocks = block_array.size();
         for (int i = 0; i < num_blocks; i++) {
-          auto b = block_array[count];
+          auto b = block_array[block_count];
           const unsigned int id = se::child_id(b->code_,
                                                se::keyops::level(b->code_), map.max_level());
           if (b->parent()) {
-            if (b->parent()->value_[id].x == voxel_traits<MultiresOFusion>::freeThresh()) {
+            if (b->data(se::VoxelBlock<MultiresOFusion>::buff_size-1).x_max == voxel_traits<MultiresOFusion>::freeThresh()) {
+              // Adjust parent child pointer and mask
               b->parent()->child(id) = NULL;
               b->parent()->children_mask_ = b->parent()->children_mask_ & ~(1 << id);
-              block_array.erase(count);
+              block_array.erase(block_count);
               continue;
             }
           }
-          count++;
+          block_count++;
         }
 
-        count = 0;
+        // Remove all nodes that are fully free. Also remove nodes without parent apart from root.
+        // This has to be done has the parent might been delete before all children have been accessed.
+        int node_count = 0;
+        auto &nodes_array = map.getNodesBuffer();
         int num_nodes = nodes_array.size();
         for (int i = 1; i < num_nodes; i++) {
-          auto n = nodes_array[count];
+          auto n = nodes_array[node_count];
           const unsigned int id = se::child_id(n->code_,
                                                se::keyops::level(n->code_), map.max_level());
           if (n->parent()) {
             if (n->parent()->value_[id].x == voxel_traits<MultiresOFusion>::freeThresh()) {
+              // Adjust parent child pointer and mask
               n->parent()->child(id) = NULL;
               n->parent()->children_mask_ = n->parent()->children_mask_ & ~(1 << id);
-              nodes_array.erase(count);
+              nodes_array.erase(node_count);
               continue;
             }
           } else if (n->side_ != map.size()) {
             n->parent()->child(id) = NULL;
-            nodes_array.erase(count);
+            nodes_array.erase(node_count);
             continue;
           }
-          count++;
+          node_count++;
         }
-
       }
     }
   }
