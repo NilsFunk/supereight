@@ -296,16 +296,16 @@ int processAll(DepthReader *reader, bool processFrame, bool renderImages,
 		timings[6] = std::chrono::steady_clock::now();
 	}
 
-	pipeline->compression();
+	pipeline->compression(frame);
 
-  if (frame >= 2 && frame <= 75) {
-    std::stringstream volume_render_filename;
-    volume_render_filename << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/living-room-" << frame << ".png";
-    lodepng_encode32_file(volume_render_filename.str().c_str(),
-                          (unsigned char*)volumeRender,
-                          (pipeline->getComputationResolution()).x(),
-                          (pipeline->getComputationResolution()).y());
-  }
+//  if (frame >= 2 && frame <= 75) {
+//    std::stringstream volume_render_filename;
+//    volume_render_filename << "./out/living-room-" << frame << ".png";
+//    lodepng_encode32_file(volume_render_filename.str().c_str(),
+//                          (unsigned char*)volumeRender,
+//                          (pipeline->getComputationResolution()).x(),
+//                          (pipeline->getComputationResolution()).y());
+//  }
 
 	if (powerMonitor != NULL && !firstFrame)
 		powerMonitor->sample();

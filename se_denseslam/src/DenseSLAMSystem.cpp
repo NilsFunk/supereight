@@ -320,12 +320,6 @@ bool DenseSLAMSystem::integration(const Eigen::Vector4f& k, unsigned int integra
       version = "multires-ofusion";
     }
 
-    if (frame == 200) {
-      std::stringstream f_ply;
-      f_ply << "/home/nils/workspace_/projects/supereight/se_denseslam/test/out/living-room-200.ply";
-      se::print_octree(f_ply.str().c_str(), *volume_._map_index);
-    }
-
     // if(frame > 160 && frame < 200) {
     //   int slice_height = int(2.1f*discrete_vol_ptr_->size()/discrete_vol_ptr_->dim());
     //   std::stringstream f;
@@ -383,9 +377,14 @@ void DenseSLAMSystem::renderDepth(unsigned char* out,
         renderDepthKernel(out, float_depth_.data(), outputSize, nearPlane, farPlane);
 }
 
-void DenseSLAMSystem::compression() {
+void DenseSLAMSystem::compression(int frame) {
   if(std::is_same<FieldType, MultiresOFusion>::value)
     se::multires::ofusion::compress(*volume_._map_index);
+  if (frame == 10 || frame%50 == 0) {
+    std::stringstream f_ply;
+    f_ply << "./out/living-room-" << frame << ".ply";
+    se::print_octree(f_ply.str().c_str(), *volume_._map_index);
+  }
 }
 
 void DenseSLAMSystem::dump_mesh(const std::string filename){

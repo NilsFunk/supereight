@@ -287,7 +287,7 @@ class DenseSLAMSystem {
     /**
     * Compress octree by removing all nodes that are full free.
     */
-    void compression();
+    void compression(int frame);
 
     //
     // Getters
